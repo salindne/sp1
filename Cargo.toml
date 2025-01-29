@@ -12,11 +12,14 @@ include = ["SP1_VERSION"]
 [workspace]
 members = [
   "crates/build",
+  "crates/cli",
   "crates/core/executor",
   "crates/core/machine",
   "crates/curves",
   "crates/derive",
+  "crates/eval",
   "crates/helper",
+  "crates/perf",
   "crates/prover",
   "crates/recursion/circuit",
   "crates/recursion/compiler",
@@ -24,8 +27,11 @@ members = [
   "crates/recursion/derive",
   "crates/recursion/gnark-cli",
   "crates/recursion/gnark-ffi",
+  "crates/sdk",
   "crates/cuda",
+  "crates/verifier",
   "crates/stark",
+  "crates/verifier",
   "crates/zkvm/*",
   "crates/test-artifacts",
 ]

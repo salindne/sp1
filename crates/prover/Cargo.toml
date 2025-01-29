@@ -55,6 +55,13 @@ hex = "0.4"
 [dev-dependencies]
 test-artifacts = { workspace = true }
 
+[[bin]]
+name = "build_plonk_bn254"
+path = "scripts/build_plonk_bn254.rs"
+
+[[bin]]
+name = "build_groth16_bn254"
+path = "scripts/build_groth16_bn254.rs"
 
 [[bin]]
 name = "build_recursion_vks"
