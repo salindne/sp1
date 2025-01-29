@@ -11,7 +11,6 @@
 #![allow(clippy::new_without_default)]
 #![allow(clippy::collapsible_else_if)]
 
-pub mod build;
 pub mod components;
 pub mod shapes;
 pub mod types;
@@ -1317,17 +1316,11 @@ pub fn compress_program_from_input<C: SP1ProverComponents>(
 #[cfg(test)]
 pub mod tests {
 
-    use std::{
-        collections::BTreeSet,
-        fs::File,
-        io::{Read, Write},
-    };
+    use std::{collections::BTreeSet, fs::File};
 
     use super::*;
 
-    use crate::build::try_build_plonk_bn254_artifacts_dev;
     use anyhow::Result;
-    use build::{build_constraints_and_witness, try_build_groth16_bn254_artifacts_dev};
     use p3_field::PrimeField32;
 
     use shapes::SP1ProofShape;
@@ -1337,7 +1330,6 @@ pub mod tests {
     use serial_test::serial;
     #[cfg(test)]
     use sp1_core_machine::utils::setup_logger;
-    use utils::sp1_vkey_digest_babybear;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Test {
@@ -1419,88 +1411,6 @@ pub mod tests {
 
         if test_kind == Test::Compress {
             return Ok(());
-        }
-
-        tracing::info!("shrink");
-        let shrink_proof = prover.shrink(compressed_proof, opts)?;
-
-        if verify {
-            tracing::info!("verify shrink");
-            prover.verify_shrink(&shrink_proof, &vk)?;
-        }
-
-        if test_kind == Test::Shrink {
-            return Ok(());
-        }
-
-        tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
-        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
-
-        // Save the proof.
-        let mut file = File::create("proof-with-pis.bin").unwrap();
-        file.write_all(bytes.as_slice()).unwrap();
-
-        // Load the proof.
-        let mut file = File::open("proof-with-pis.bin").unwrap();
-        let mut bytes = Vec::new();
-        file.read_to_end(&mut bytes).unwrap();
-
-        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
-
-        if verify {
-            tracing::info!("verify wrap bn254");
-            prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
-        }
-
-        if test_kind == Test::Wrap {
-            return Ok(());
-        }
-
-        tracing::info!("checking vkey hash babybear");
-        let vk_digest_babybear = sp1_vkey_digest_babybear(&wrapped_bn254_proof);
-        assert_eq!(vk_digest_babybear, vk.hash_babybear());
-
-        tracing::info!("checking vkey hash bn254");
-        let vk_digest_bn254 = sp1_vkey_digest_bn254(&wrapped_bn254_proof);
-        assert_eq!(vk_digest_bn254, vk.hash_bn254());
-
-        tracing::info!("Test the outer Plonk circuit");
-        let (constraints, witness) =
-            build_constraints_and_witness(&wrapped_bn254_proof.vk, &wrapped_bn254_proof.proof);
-        PlonkBn254Prover::test(constraints, witness);
-        tracing::info!("Circuit test succeeded");
-
-        if test_kind == Test::CircuitTest {
-            return Ok(());
-        }
-
-        tracing::info!("generate plonk bn254 proof");
-        let artifacts_dir = try_build_plonk_bn254_artifacts_dev(
-            &wrapped_bn254_proof.vk,
-            &wrapped_bn254_proof.proof,
-        );
-        let plonk_bn254_proof =
-            prover.wrap_plonk_bn254(wrapped_bn254_proof.clone(), &artifacts_dir);
-        println!("{:?}", plonk_bn254_proof);
-
-        prover.verify_plonk_bn254(&plonk_bn254_proof, &vk, &public_values, &artifacts_dir)?;
-
-        tracing::info!("generate groth16 bn254 proof");
-        let artifacts_dir = try_build_groth16_bn254_artifacts_dev(
-            &wrapped_bn254_proof.vk,
-            &wrapped_bn254_proof.proof,
-        );
-        let groth16_bn254_proof = prover.wrap_groth16_bn254(wrapped_bn254_proof, &artifacts_dir);
-        println!("{:?}", groth16_bn254_proof);
-
-        if verify {
-            prover.verify_groth16_bn254(
-                &groth16_bn254_proof,
-                &vk,
-                &public_values,
-                &artifacts_dir,
-            )?;
         }
 
         Ok(())
@@ -1593,18 +1503,6 @@ pub mod tests {
 
         tracing::info!("verify verify program");
         prover.verify_compressed(&verify_reduce, &verify_vk)?;
-
-        let shrink_proof = prover.shrink(verify_reduce, opts)?;
-
-        tracing::info!("verify shrink");
-        prover.verify_shrink(&shrink_proof, &verify_vk)?;
-
-        tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof, opts)?;
-
-        tracing::info!("verify wrap bn254");
-        println!("verify wrap bn254 {:#?}", wrapped_bn254_proof.vk.commit);
-        prover.verify_wrap_bn254(&wrapped_bn254_proof, &verify_vk).unwrap();
 
         Ok(())
     }
