@@ -12,9 +12,10 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, FieldOperation, PrecompileEvent},
+    // events::{ByteLookupEvent, ByteRecord, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    // ExecutionRecord,
+    Program,
 };
 use sp1_curves::{
     params::{Limbs, NumLimbs},
@@ -82,101 +83,97 @@ impl<F: PrimeField32, P: FpOpField> MachineAir<F> for FpOpChip<P> {
 
     fn name(&self) -> String {
         match P::FIELD_TYPE {
-            FieldType::Bn254 => "Bn254FpOpAssign".to_string(),
-            FieldType::Bls12381 => "Bls12381FpOpAssign".to_string(),
+            FieldType::Bn254 => "Bn254FpOp".to_string(),
+            FieldType::Bls12381 => "Bls12831FpOp".to_string(),
         }
     }
 
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
-        // All the fp events for a given curve are coalesce to the curve's Add operation.  Only retrieve
-        // precompile events for that operation.
-        // TODO:  Fix this.
+    // fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F> {
+    //     let events = match P::FIELD_TYPE {
+    //         FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP_OP),
+    //         FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP_OP),
+    //     };
 
-        let events = match P::FIELD_TYPE {
-            FieldType::Bn254 => input.get_precompile_events(SyscallCode::BN254_FP_ADD).iter(),
-            FieldType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_FP_ADD).iter(),
-        };
+    //     let mut rows = Vec::new();
+    //     let mut new_byte_lookup_events = Vec::new();
 
-        let mut rows = Vec::new();
-        let mut new_byte_lookup_events = Vec::new();
+    //     for (_, event) in events {
+    //         let event = match (P::FIELD_TYPE, event) {
+    //             (FieldType::Bn254, PrecompileEvent::Bn254FpOp(event)) => event,
+    //             (FieldType::Bls12381, PrecompileEvent::Bls12381FpOp(event)) => event,
+    //             _ => unreachable!(),
+    //         };
 
-        for (_, event) in events {
-            let event = match (P::FIELD_TYPE, event) {
-                (FieldType::Bn254, PrecompileEvent::Bn254Fp(event)) => event,
-                (FieldType::Bls12381, PrecompileEvent::Bls12381Fp(event)) => event,
-                _ => unreachable!(),
-            };
+    //         let mut row = zeroed_f_vec(num_fp_op_cols::<P>());
+    //         let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
 
-            let mut row = zeroed_f_vec(num_fp_cols::<P>());
-            let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
+    //         let p = &event.x;
+    //         let q = &event.y;
+    //         let p_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(p));
+    //         let q_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(q));
 
-            let modulus = &BigUint::from_bytes_le(P::MODULUS);
-            let p = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.x)) % modulus;
-            let q = BigUint::from_bytes_le(&words_to_bytes_le_vec(&event.y)) % modulus;
+    //         cols.is_real = F::one();
+    //         cols.shard = F::from_canonical_u32(event.shard);
+    //         cols.clk = F::from_canonical_u32(event.clk);
+    //         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
+    //         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+    //         cols.operation = F::from_canonical_u32(event.operation as u32);
 
-            cols.is_add = F::from_canonical_u8((event.op == FieldOperation::Add) as u8);
-            cols.is_sub = F::from_canonical_u8((event.op == FieldOperation::Sub) as u8);
-            cols.is_mul = F::from_canonical_u8((event.op == FieldOperation::Mul) as u8);
-            cols.is_real = F::one();
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.x_ptr = F::from_canonical_u32(event.x_ptr);
-            cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+    //         Self::populate_field_ops(
+    //             &mut new_byte_lookup_events,
+    //             event.shard,
+    //             cols,
+    //             p_x,
+    //             q_x,
+    //             event.operation,
+    //         );
 
-            Self::populate_field_ops(
-                &mut new_byte_lookup_events,
-                event.shard,
-                cols,
-                p,
-                q,
-                event.op,
-            );
+    //         // Populate the memory access columns.
+    //         for i in 0..cols.y_access.len() {
+    //             cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         for i in 0..cols.x_access.len() {
+    //             cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         rows.push(row);
+    //     }
 
-            // Populate the memory access columns.
-            for i in 0..cols.y_access.len() {
-                cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
-            }
-            for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
-            }
-            rows.push(row);
-        }
+    //     output.add_byte_lookup_events(new_byte_lookup_events);
 
-        output.add_byte_lookup_events(new_byte_lookup_events);
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || {
+    //             let mut row = zeroed_f_vec(num_fp_op_cols::<P>());
+    //             let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
+    //             let zero = BigUint::zero();
+    //             Self::populate_field_ops(
+    //                 &mut vec![],
+    //                 0,
+    //                 cols,
+    //                 zero.clone(),
+    //                 zero,
+    //                 FieldOperation::Add,
+    //             );
+    //             row
+    //         },
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = zeroed_f_vec(num_fp_cols::<P>());
-                let cols: &mut FpOpCols<F, P> = row.as_mut_slice().borrow_mut();
-                let zero = BigUint::zero();
-                cols.is_add = F::from_canonical_u8(1);
-                Self::populate_field_ops(
-                    &mut vec![],
-                    0,
-                    cols,
-                    zero.clone(),
-                    zero,
-                    FieldOperation::Add,
-                );
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     // Convert the trace to a row major matrix.
+    //     let mut trace = RowMajorMatrix::new(
+    //         rows.into_iter().flatten().collect::<Vec<_>>(),
+    //         num_fp_op_cols::<P>(),
+    //     );
 
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_fp_cols::<P>());
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut FpOpCols<F, P> =
+    //             trace.values[i * num_fp_op_cols::<P>()..(i + 1) * num_fp_op_cols::<P>()].borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut FpOpCols<F, P> =
-                trace.values[i * num_fp_cols::<P>()..(i + 1) * num_fp_cols::<P>()].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
-    }
+    //     trace
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         // All the fp events for a given curve are coalesce to the curve's Add operation. Only

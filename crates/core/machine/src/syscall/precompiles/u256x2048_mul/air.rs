@@ -93,157 +93,86 @@ impl<F: PrimeField32> MachineAir<F> for U256x2048MulChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "U256XU2048Mul".to_string()
+        "U256x2048Mul".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Implement trace generation logic.
-        let rows_and_records = input
-            .get_precompile_events(SyscallCode::U256XU2048_MUL)
-            .chunks(1)
-            .map(|events| {
-                let mut records = ExecutionRecord::default();
-                let mut new_byte_lookup_events = Vec::new();
+    // fn generate_trace(
+    //     &self,
+    //     input: &Self::Record,
+    //     output: &mut Self::Record,
+    // ) -> RowMajorMatrix<F> {
+    //     let mut rows = Vec::new();
+    //     let mut new_byte_lookup_events = Vec::new();
 
-                let rows = events
-                    .iter()
-                    .map(|(_, event)| {
-                        let event = if let PrecompileEvent::U256xU2048Mul(event) = event {
-                            event
-                        } else {
-                            unreachable!()
-                        };
-                        let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                        let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
+    //     for (_, event) in input.get_precompile_events(SyscallCode::U256X2048_MUL) {
+    //         let event = if let PrecompileEvent::U256x2048Mul(event) = event {
+    //             event
+    //         } else {
+    //             unreachable!();
+    //         };
 
-                        // Assign basic values to the columns.
-                        cols.is_real = F::one();
-                        cols.shard = F::from_canonical_u32(event.shard);
-                        cols.clk = F::from_canonical_u32(event.clk);
-                        cols.a_ptr = F::from_canonical_u32(event.a_ptr);
-                        cols.b_ptr = F::from_canonical_u32(event.b_ptr);
-                        cols.lo_ptr = F::from_canonical_u32(event.lo_ptr);
-                        cols.hi_ptr = F::from_canonical_u32(event.hi_ptr);
+    //         let mut row = zeroed_f_vec(NUM_U256X2048_MUL_COLS);
+    //         let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
 
-                        // Populate memory accesses for lo_ptr and hi_ptr.
-                        cols.lo_ptr_memory
-                            .populate(event.lo_ptr_memory, &mut new_byte_lookup_events);
-                        cols.hi_ptr_memory
-                            .populate(event.hi_ptr_memory, &mut new_byte_lookup_events);
+    //         cols.is_real = F::one();
+    //         cols.shard = F::from_canonical_u32(event.shard);
+    //         cols.clk = F::from_canonical_u32(event.clk);
+    //         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
+    //         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-                        // Populate memory columns.
-                        for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.a_memory[i]
-                                .populate(event.a_memory_records[i], &mut new_byte_lookup_events);
-                        }
+    //         Self::populate_field_ops(
+    //             &mut new_byte_lookup_events,
+    //             event.shard,
+    //             cols,
+    //             event.x,
+    //             event.y,
+    //         );
 
-                        for i in 0..WORDS_FIELD_ELEMENT * 8 {
-                            cols.b_memory[i]
-                                .populate(event.b_memory_records[i], &mut new_byte_lookup_events);
-                        }
+    //         // Populate the memory access columns.
+    //         for i in 0..cols.y_access.len() {
+    //             cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         for i in 0..cols.x_access.len() {
+    //             cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         rows.push(row);
+    //     }
 
-                        for i in 0..WORDS_FIELD_ELEMENT * 8 {
-                            cols.lo_memory[i]
-                                .populate(event.lo_memory_records[i], &mut new_byte_lookup_events);
-                        }
+    //     output.add_byte_lookup_events(new_byte_lookup_events);
 
-                        for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.hi_memory[i]
-                                .populate(event.hi_memory_records[i], &mut new_byte_lookup_events);
-                        }
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || {
+    //             let mut row = zeroed_f_vec(NUM_U256X2048_MUL_COLS);
+    //             let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
+    //             Self::populate_field_ops(
+    //                 &mut vec![],
+    //                 0,
+    //                 cols,
+    //                 [0; WORD_SIZE],
+    //                 [0; WORD_SIZE],
+    //             );
+    //             row
+    //         },
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-                        let a = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.a));
-                        let b_array: [BigUint; 8] = event
-                            .b
-                            .chunks(8)
-                            .map(|chunk| BigUint::from_bytes_le(&words_to_bytes_le::<32>(chunk)))
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .unwrap();
+    //     // Convert the trace to a row major matrix.
+    //     let mut trace = RowMajorMatrix::new(
+    //         rows.into_iter().flatten().collect::<Vec<_>>(),
+    //         NUM_U256X2048_MUL_COLS,
+    //     );
 
-                        let effective_modulus = BigUint::one() << 256;
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut U256x2048MulCols<F> = trace.values
+    //             [i * NUM_U256X2048_MUL_COLS..(i + 1) * NUM_U256X2048_MUL_COLS]
+    //             .borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
 
-                        let mut carries = vec![BigUint::zero(); 9];
-                        let mut ab_plus_carry_cols = [
-                            &mut cols.a_mul_b1,
-                            &mut cols.ab2_plus_carry,
-                            &mut cols.ab3_plus_carry,
-                            &mut cols.ab4_plus_carry,
-                            &mut cols.ab5_plus_carry,
-                            &mut cols.ab6_plus_carry,
-                            &mut cols.ab7_plus_carry,
-                            &mut cols.ab8_plus_carry,
-                        ];
-
-                        for (i, col) in ab_plus_carry_cols.iter_mut().enumerate() {
-                            let (_, carry) = col.populate_mul_and_carry(
-                                &mut new_byte_lookup_events,
-                                event.shard,
-                                &a,
-                                &b_array[i],
-                                &carries[i],
-                                &effective_modulus,
-                            );
-                            carries[i + 1] = carry;
-                        }
-                        row
-                    })
-                    .collect::<Vec<_>>();
-                records.add_byte_lookup_events(new_byte_lookup_events);
-                (rows, records)
-            })
-            .collect::<Vec<_>>();
-
-        // Generate the trace rows for each event.
-        let mut rows = Vec::new();
-        for (row, mut record) in rows_and_records {
-            rows.extend(row);
-            output.append(&mut record);
-        }
-
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                let cols: &mut U256x2048MulCols<F> = row.as_mut_slice().borrow_mut();
-
-                let x = BigUint::zero();
-                let y = BigUint::zero();
-                let z = BigUint::zero();
-                let modulus = BigUint::one() << 256;
-
-                // Populate all the mul and carry columns with zero values.
-                cols.a_mul_b1.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
-                cols.ab2_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab3_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab4_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab5_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab6_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab7_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-                cols.ab8_plus_carry.populate_mul_and_carry(&mut vec![], 0, &x, &y, &z, &modulus);
-
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut U256x2048MulCols<F> =
-                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
-    }
+    //     trace
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

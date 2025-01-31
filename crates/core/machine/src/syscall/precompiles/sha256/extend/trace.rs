@@ -4,9 +4,10 @@ use p3_field::PrimeField32;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, PrecompileEvent, ShaExtendEvent},
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    // events::{ByteLookupEvent, ByteRecord, PrecompileEvent, ShaExtendEvent},
+    // syscalls::SyscallCode,
+    Program,
+    // ExecutionRecord,
 };
 use sp1_stark::air::MachineAir;
 use std::borrow::BorrowMut;
@@ -22,72 +23,52 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
         "ShaExtend".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let rows = Vec::new();
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .sha_extend_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
+    //             let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        let mut new_byte_lookup_events = Vec::new();
-        let mut wrapped_rows = Some(rows);
-        for (_, event) in input.get_precompile_events(SyscallCode::SHA_EXTEND).iter() {
-            let event =
-                if let PrecompileEvent::ShaExtend(event) = event { event } else { unreachable!() };
-            self.event_to_rows(event, &mut wrapped_rows, &mut new_byte_lookup_events);
-        }
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_SHA_EXTEND_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        let mut rows = wrapped_rows.unwrap();
-        let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-        for i in nb_rows..padded_nb_rows {
-            let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate_flags(i);
-            rows.push(row);
-        }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SHA_EXTEND_COLS)
+    // }
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHA_EXTEND_COLS,
-        );
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.sha_extend_events.len() / num_cpus::get(), 1);
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut ShaExtendCols<F> =
-                trace.values[i * NUM_SHA_EXTEND_COLS..(i + 1) * NUM_SHA_EXTEND_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
+    //     let blu_batches = input
+    //         .sha_extend_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
+    //                 let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-        trace
-    }
-
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let events = input.get_precompile_events(SyscallCode::SHA_EXTEND);
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-
-        let blu_batches = events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|(_, event)| {
-                    let event = if let PrecompileEvent::ShaExtend(event) = event {
-                        event
-                    } else {
-                        unreachable!()
-                    };
-                    self.event_to_rows::<F>(event, &mut None, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

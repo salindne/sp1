@@ -218,223 +218,32 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         "DivRem".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
-        let divrem_events = input.divrem_events.clone();
-        for event in divrem_events.iter() {
-            assert!(
-                event.opcode == Opcode::DIVU
-                    || event.opcode == Opcode::REMU
-                    || event.opcode == Opcode::REM
-                    || event.opcode == Opcode::DIV
-            );
-            let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .divrem_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_DIVREM_COLS];
+    //             let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-            // Initialize cols with basic operands and flags derived from the current event.
-            {
-                cols.a = Word::from(event.a);
-                cols.b = Word::from(event.b);
-                cols.c = Word::from(event.c);
-                cols.shard = F::from_canonical_u32(event.shard);
-                cols.is_real = F::one();
-                cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
-                cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
-                cols.is_div = F::from_bool(event.opcode == Opcode::DIV);
-                cols.is_rem = F::from_bool(event.opcode == Opcode::REM);
-                cols.is_c_0.populate(event.c);
-            }
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_DIVREM_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-            let (quotient, remainder) = get_quotient_and_remainder(event.b, event.c, event.opcode);
-            cols.quotient = Word::from(quotient);
-            cols.remainder = Word::from(remainder);
-
-            // Calculate flags for sign detection.
-            {
-                cols.rem_msb = F::from_canonical_u8(get_msb(remainder));
-                cols.b_msb = F::from_canonical_u8(get_msb(event.b));
-                cols.c_msb = F::from_canonical_u8(get_msb(event.c));
-                cols.is_overflow_b.populate(event.b, i32::MIN as u32);
-                cols.is_overflow_c.populate(event.c, -1i32 as u32);
-                if is_signed_operation(event.opcode) {
-                    cols.rem_neg = cols.rem_msb;
-                    cols.b_neg = cols.b_msb;
-                    cols.c_neg = cols.c_msb;
-                    cols.is_overflow =
-                        F::from_bool(event.b as i32 == i32::MIN && event.c as i32 == -1);
-                    cols.abs_remainder = Word::from((remainder as i32).abs() as u32);
-                    cols.abs_c = Word::from((event.c as i32).abs() as u32);
-                    cols.max_abs_c_or_1 = Word::from(u32::max(1, (event.c as i32).abs() as u32));
-                } else {
-                    cols.abs_remainder = cols.remainder;
-                    cols.abs_c = cols.c;
-                    cols.max_abs_c_or_1 = Word::from(u32::max(1, event.c));
-                }
-
-                // Set the `alu_event` flags.
-                cols.abs_c_alu_event = cols.c_neg * cols.is_real;
-                cols.abs_c_alu_event_nonce = F::from_canonical_u32(
-                    input
-                        .nonce_lookup
-                        .get(event.sub_lookups[4].0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
-                cols.abs_rem_alu_event = cols.rem_neg * cols.is_real;
-                cols.abs_rem_alu_event_nonce = F::from_canonical_u32(
-                    input
-                        .nonce_lookup
-                        .get(event.sub_lookups[5].0 as usize)
-                        .copied()
-                        .unwrap_or_default(),
-                );
-
-                // Insert the MSB lookup events.
-                {
-                    let words = [event.b, event.c, remainder];
-                    let mut blu_events: Vec<ByteLookupEvent> = vec![];
-                    for word in words.iter() {
-                        let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
-                        blu_events.push(ByteLookupEvent {
-                            shard: event.shard,
-                            opcode: ByteOpcode::MSB,
-                            a1: get_msb(*word) as u16,
-                            a2: 0,
-                            b: most_significant_byte,
-                            c: 0,
-                        });
-                    }
-                    output.add_byte_lookup_events(blu_events);
-                }
-            }
-
-            // Calculate the modified multiplicity
-            {
-                cols.remainder_check_multiplicity = cols.is_real * (F::one() - cols.is_c_0.result);
-            }
-
-            // Calculate c * quotient + remainder.
-            {
-                let c_times_quotient = {
-                    if is_signed_operation(event.opcode) {
-                        (((quotient as i32) as i64) * ((event.c as i32) as i64)).to_le_bytes()
-                    } else {
-                        ((quotient as u64) * (event.c as u64)).to_le_bytes()
-                    }
-                };
-                cols.c_times_quotient = c_times_quotient.map(F::from_canonical_u8);
-
-                let remainder_bytes = {
-                    if is_signed_operation(event.opcode) {
-                        ((remainder as i32) as i64).to_le_bytes()
-                    } else {
-                        (remainder as u64).to_le_bytes()
-                    }
-                };
-
-                // Add remainder to product.
-                let mut carry = [0u32; 8];
-                let base = 1 << BYTE_SIZE;
-                for i in 0..LONG_WORD_SIZE {
-                    let mut x = c_times_quotient[i] as u32 + remainder_bytes[i] as u32;
-                    if i > 0 {
-                        x += carry[i - 1];
-                    }
-                    carry[i] = x / base;
-                    cols.carry[i] = F::from_canonical_u32(carry[i]);
-                }
-
-                // Insert the necessary multiplication & LT events.
-                {
-                    cols.lower_nonce = F::from_canonical_u32(
-                        input
-                            .nonce_lookup
-                            .get(event.sub_lookups[0].0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-                    cols.upper_nonce = F::from_canonical_u32(
-                        input
-                            .nonce_lookup
-                            .get(event.sub_lookups[1].0 as usize)
-                            .copied()
-                            .unwrap_or_default(),
-                    );
-                    if is_signed_operation(event.opcode) {
-                        cols.abs_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(event.sub_lookups[2].0 as usize)
-                                .copied()
-                                .unwrap_or_default(),
-                        );
-                    } else {
-                        cols.abs_nonce = F::from_canonical_u32(
-                            input
-                                .nonce_lookup
-                                .get(event.sub_lookups[3].0 as usize)
-                                .copied()
-                                .unwrap_or_default(),
-                        );
-                    };
-                }
-
-                // Range check.
-                {
-                    output.add_u8_range_checks(event.shard, &quotient.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &remainder.to_le_bytes());
-                    output.add_u8_range_checks(event.shard, &c_times_quotient);
-                }
-            }
-
-            rows.push(row);
-        }
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_DIVREM_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS);
-
-        // Create the template for the padded rows. These are fake rows that don't fail on some
-        // sanity checks.
-        let padded_row_template = {
-            let mut row = [F::zero(); NUM_DIVREM_COLS];
-            let cols: &mut DivRemCols<F> = row.as_mut_slice().borrow_mut();
-            // 0 divided by 1. quotient = remainder = 0.
-            cols.is_divu = F::one();
-            cols.c[0] = F::one();
-            cols.abs_c[0] = F::one();
-            cols.max_abs_c_or_1[0] = F::one();
-
-            cols.is_c_0.populate(1);
-
-            row
-        };
-        debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for i in input.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
-            trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
-        }
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut DivRemCols<F> =
-                trace.values[i * NUM_DIVREM_COLS..(i + 1) * NUM_DIVREM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS)
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

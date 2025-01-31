@@ -99,51 +99,51 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         Some(RowMajorMatrix::new(values, NUM_PROGRAM_PREPROCESSED_COLS))
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
-    }
+    // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    //     // Do nothing since this chip has no dependencies.
+    // }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
 
-        // Collect the number of times each instruction is called from the cpu events.
-        // Store it as a map of PC -> count.
-        let mut instruction_counts = HashMap::new();
-        input.cpu_events.iter().for_each(|event| {
-            let pc = event.pc;
-            instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
-        });
+    //     // Collect the number of times each instruction is called from the cpu events.
+    //     // Store it as a map of PC -> count.
+    //     let mut instruction_counts = HashMap::new();
+    //     input.cpu_events.iter().for_each(|event| {
+    //         let pc = event.pc;
+    //         instruction_counts.entry(pc).and_modify(|count| *count += 1).or_insert(1);
+    //     });
 
-        let mut rows = input
-            .program
-            .instructions
-            .clone()
-            .into_iter()
-            .enumerate()
-            .map(|(i, _)| {
-                let pc = input.program.pc_base + (i as u32 * 4);
-                let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
-                let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
-                cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
-                cols.multiplicity =
-                    F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
-                row
-            })
-            .collect::<Vec<_>>();
+    //     let mut rows = input
+    //         .program
+    //         .instructions
+    //         .clone()
+    //         .into_iter()
+    //         .enumerate()
+    //         .map(|(i, _)| {
+    //             let pc = input.program.pc_base + (i as u32 * 4);
+    //             let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
+    //             let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
+    //             cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
+    //             cols.multiplicity =
+    //                 F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_PROGRAM_MULT_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_PROGRAM_MULT_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_PROGRAM_MULT_COLS)
+    // }
 
     fn included(&self, _: &Self::Record) -> bool {
         true

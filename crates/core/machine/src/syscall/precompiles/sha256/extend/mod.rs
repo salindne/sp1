@@ -92,3 +92,27 @@ pub mod extend_tests {
         run_test::<CpuProver<_, _>>(program).unwrap();
     }
 }
+
+impl ShaExtendChip {
+    fn name(&self) -> String {
+        "Sha256Extend".to_string()
+    }
+
+    // fn generate_trace() {
+    //     let mut shard = ExecutionRecord::default();
+    //     shard.sha256_extend_events = vec![Sha256ExtendEvent {
+    //         shard: 0,
+    //         clk: 0,
+    //         w: [0; 64],
+    //     }];
+    //     let chip = Sha256ExtendChip::default();
+    //     let trace: RowMajorMatrix<BabyBear> =
+    //         chip.generate_trace(&shard, &mut ExecutionRecord::default());
+    //     println!("{:?}", trace.values)
+    // }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        // Implementation of included method
+        false
+    }
+}

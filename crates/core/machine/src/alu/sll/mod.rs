@@ -107,81 +107,55 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     type Program = Program;
 
     fn name(&self) -> String {
-        "ShiftLeft".to_string()
+        "Sll".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let mut rows: Vec<[F; NUM_SHIFT_LEFT_COLS]> = vec![];
-        let shift_left_events = input.shift_left_events.clone();
-        for event in shift_left_events.iter() {
-            let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
-            let mut blu = Vec::new();
-            self.event_to_row(event, cols, &mut blu);
-            rows.push(row);
-        }
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .sll_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_SLL_COLS];
+    //             let cols: &mut SllCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_SHIFT_LEFT_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_SLL_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHIFT_LEFT_COLS,
-        );
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SLL_COLS)
+    // }
 
-        // Create the template for the padded rows. These are fake rows that don't fail on some
-        // sanity checks.
-        let padded_row_template = {
-            let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-            let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
-            cols.shift_by_n_bits[0] = F::one();
-            cols.shift_by_n_bytes[0] = F::one();
-            cols.bit_shift_multiplier = F::one();
-            row
-        };
-        debug_assert!(padded_row_template.len() == NUM_SHIFT_LEFT_COLS);
-        for i in input.shift_left_events.len() * NUM_SHIFT_LEFT_COLS..trace.values.len() {
-            trace.values[i] = padded_row_template[i % NUM_SHIFT_LEFT_COLS];
-        }
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.sll_events.len() / num_cpus::get(), 1);
 
-        for i in 0..trace.height() {
-            let cols: &mut ShiftLeftCols<F> =
-                trace.values[i * NUM_SHIFT_LEFT_COLS..(i + 1) * NUM_SHIFT_LEFT_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
+    //     let blu_batches = input
+    //         .sll_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_SLL_COLS];
+    //                 let cols: &mut SllCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-        trace
-    }
-
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.shift_left_events.len() / num_cpus::get(), 1);
-
-        let blu_batches = input
-            .shift_left_events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_SHIFT_LEFT_COLS];
-                    let cols: &mut ShiftLeftCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

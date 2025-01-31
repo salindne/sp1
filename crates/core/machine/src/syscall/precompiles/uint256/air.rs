@@ -97,128 +97,85 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Uint256MulMod".to_string()
+        "Uint256".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows & corresponding records for each chunk of events concurrently.
-        let rows_and_records = input
-            .get_precompile_events(SyscallCode::UINT256_MUL)
-            .chunks(1)
-            .map(|events| {
-                let mut records = ExecutionRecord::default();
-                let mut new_byte_lookup_events = Vec::new();
+    // fn generate_trace(
+    //     &self,
+    //     input: &Self::Record,
+    //     output: &mut Self::Record,
+    // ) -> RowMajorMatrix<F> {
+    //     let mut rows = Vec::new();
+    //     let mut new_byte_lookup_events = Vec::new();
 
-                let rows = events
-                    .iter()
-                    .map(|(_, event)| {
-                        let event = if let PrecompileEvent::Uint256Mul(event) = event {
-                            event
-                        } else {
-                            unreachable!()
-                        };
-                        let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                        let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+    //     for (_, event) in input.get_precompile_events(SyscallCode::UINT256) {
+    //         let event = if let PrecompileEvent::Uint256(event) = event {
+    //             event
+    //         } else {
+    //             unreachable!();
+    //         };
 
-                        // Decode uint256 points
-                        let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
-                        let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
-                        let modulus =
-                            BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
+    //         let mut row = zeroed_f_vec(NUM_UINT256_COLS);
+    //         let cols: &mut Uint256Cols<F> = row.as_mut_slice().borrow_mut();
 
-                        // Assign basic values to the columns.
-                        cols.is_real = F::one();
-                        cols.shard = F::from_canonical_u32(event.shard);
-                        cols.clk = F::from_canonical_u32(event.clk);
-                        cols.x_ptr = F::from_canonical_u32(event.x_ptr);
-                        cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+    //         cols.is_real = F::one();
+    //         cols.shard = F::from_canonical_u32(event.shard);
+    //         cols.clk = F::from_canonical_u32(event.clk);
+    //         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
+    //         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+    //         cols.operation = F::from_canonical_u32(event.operation as u32);
 
-                        // Populate memory columns.
-                        for i in 0..WORDS_FIELD_ELEMENT {
-                            cols.x_memory[i]
-                                .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
-                            cols.y_memory[i]
-                                .populate(event.y_memory_records[i], &mut new_byte_lookup_events);
-                            cols.modulus_memory[i].populate(
-                                event.modulus_memory_records[i],
-                                &mut new_byte_lookup_events,
-                            );
-                        }
+    //         Self::populate_field_ops(
+    //             &mut new_byte_lookup_events,
+    //             event.shard,
+    //             cols,
+    //             event.x,
+    //             event.y,
+    //             event.operation,
+    //         );
 
-                        let modulus_bytes = words_to_bytes_le_vec(&event.modulus);
-                        let modulus_byte_sum = modulus_bytes.iter().map(|b| *b as u32).sum::<u32>();
-                        IsZeroOperation::populate(&mut cols.modulus_is_zero, modulus_byte_sum);
+    //         // Populate the memory access columns.
+    //         for i in 0..cols.y_access.len() {
+    //             cols.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         for i in 0..cols.x_access.len() {
+    //             cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         rows.push(row);
+    //     }
 
-                        // Populate the output column.
-                        let effective_modulus =
-                            if modulus.is_zero() { BigUint::one() << 256 } else { modulus.clone() };
-                        let result = cols.output.populate_with_modulus(
-                            &mut new_byte_lookup_events,
-                            event.shard,
-                            &x,
-                            &y,
-                            &effective_modulus,
-                            // &modulus,
-                            FieldOperation::Mul,
-                        );
+    //     output.add_byte_lookup_events(new_byte_lookup_events);
 
-                        cols.modulus_is_not_zero = F::one() - cols.modulus_is_zero.result;
-                        if cols.modulus_is_not_zero == F::one() {
-                            cols.output_range_check.populate(
-                                &mut new_byte_lookup_events,
-                                event.shard,
-                                &result,
-                                &effective_modulus,
-                            );
-                        }
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || {
+    //             let mut row = zeroed_f_vec(NUM_UINT256_COLS);
+    //             let cols: &mut Uint256Cols<F> = row.as_mut_slice().borrow_mut();
+    //             Self::populate_field_ops(
+    //                 &mut vec![],
+    //                 0,
+    //                 cols,
+    //                 [0; WORD_SIZE],
+    //                 [0; WORD_SIZE],
+    //                 FieldOperation::Add,
+    //             );
+    //             row
+    //         },
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-                        row
-                    })
-                    .collect::<Vec<_>>();
-                records.add_byte_lookup_events(new_byte_lookup_events);
-                (rows, records)
-            })
-            .collect::<Vec<_>>();
+    //     // Convert the trace to a row major matrix.
+    //     let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_UINT256_COLS);
 
-        //  Generate the trace rows for each event.
-        let mut rows = Vec::new();
-        for (row, mut record) in rows_and_records {
-            rows.extend(row);
-            output.append(&mut record);
-        }
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut Uint256Cols<F> =
+    //             trace.values[i * NUM_UINT256_COLS..(i + 1) * NUM_UINT256_COLS].borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
-                let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
-
-                let x = BigUint::zero();
-                let y = BigUint::zero();
-                cols.output.populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
-
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
-
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS);
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut Uint256MulCols<F> =
-                trace.values[i * NUM_COLS..(i + 1) * NUM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
-    }
+    //     trace
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

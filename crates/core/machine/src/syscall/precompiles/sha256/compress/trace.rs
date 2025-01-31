@@ -27,94 +27,77 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
         "ShaCompress".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let rows = Vec::new();
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
+    //     let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let mut wrapped_rows = Some(rows);
-        for (_, event) in input.get_precompile_events(SyscallCode::SHA_COMPRESS) {
-            let event = if let PrecompileEvent::ShaCompress(event) = event {
-                event
-            } else {
-                unreachable!()
-            };
-            self.event_to_rows(event, &mut wrapped_rows, &mut Vec::new());
-        }
-        let mut rows = wrapped_rows.unwrap();
+    //     let blu_batches = events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|(_, event)| {
+    //                 let event = if let PrecompileEvent::ShaCompress(event) = event {
+    //                     event
+    //                 } else {
+    //                     unreachable!()
+    //                 };
+    //                 self.event_to_rows::<F>(event, &mut None, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-        let num_real_rows = rows.len();
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_SHA_COMPRESS_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
+    //     let nb_rows = events.len() * NUM_ROUNDS;
+    //     let size_log2 = input.fixed_log2_rows::<F, _>(self);
+    //     let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+    //     let mut values = zeroed_f_vec(padded_nb_rows * NUM_SHA_COMPRESS_COLS);
+    //     let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        // Set the octet_num and octet columns for the padded rows.
-        let mut octet_num = 0;
-        let mut octet = 0;
-        for row in rows[num_real_rows..].iter_mut() {
-            let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.octet_num[octet_num] = F::one();
-            cols.octet[octet] = F::one();
+    //     values
+    //         .chunks_mut(chunk_size * NUM_SHA_COMPRESS_COLS)
+    //         .enumerate()
+    //         .par_bridge()
+    //         .for_each(|(i, rows)| {
+    //             rows.chunks_mut(NUM_SHA_COMPRESS_COLS).enumerate().for_each(|(j, row)| {
+    //                 let idx = i * chunk_size + j;
+    //                 let event_idx = idx / NUM_ROUNDS;
+    //                 let round_idx = idx % NUM_ROUNDS;
 
-            // If in the compression phase, set the k value.
-            if octet_num != 0 && octet_num != 9 {
-                let compression_idx = octet_num - 1;
-                let k_idx = compression_idx * 8 + octet;
-                cols.k = Word::from(SHA_COMPRESS_K[k_idx]);
-            }
+    //                 if event_idx < events.len() {
+    //                     let mut blu = HashMap::new();
+    //                     let cols: &mut ShaCompressCols<F> = row.borrow_mut();
+    //                     let event = if let PrecompileEvent::ShaCompress(event) = &events[event_idx].1 {
+    //                         event
+    //                     } else {
+    //                         unreachable!()
+    //                     };
+    //                     self.event_to_rows::<F>(event, &mut Some((cols, round_idx)), &mut blu);
+    //                 }
+    //             });
+    //         });
 
-            octet = (octet + 1) % 8;
-            if octet == 0 {
-                octet_num = (octet_num + 1) % 10;
-            }
+    //     // Convert the trace to a row major matrix.
+    //     let mut trace = RowMajorMatrix::new(values, NUM_SHA_COMPRESS_COLS);
 
-            cols.is_last_row = cols.octet[7] * cols.octet_num[9];
-        }
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut ShaCompressCols<F> = trace.values[i * NUM_SHA_COMPRESS_COLS
+    //             ..(i + 1) * NUM_SHA_COMPRESS_COLS]
+    //             .borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHA_COMPRESS_COLS,
-        );
-
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut ShaCompressCols<F> = trace.values
-                [i * NUM_SHA_COMPRESS_COLS..(i + 1) * NUM_SHA_COMPRESS_COLS]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
-    }
-
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let events = input.get_precompile_events(SyscallCode::SHA_COMPRESS);
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
-
-        let blu_batches = events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|(_, event)| {
-                    let event = if let PrecompileEvent::ShaCompress(event) = event {
-                        event
-                    } else {
-                        unreachable!()
-                    };
-                    self.event_to_rows::<F>(event, &mut None, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     trace
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

@@ -142,15 +142,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     }
 
     /// Returns an iterator over the chips in the machine that are included in the given shard.
-    pub fn shard_chips<'a, 'b>(
-        &'a self,
-        shard: &'b A::Record,
-    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
-    where
-        'a: 'b,
-    {
-        self.chips.iter().filter(|chip| chip.included(shard))
-    }
+    // pub fn shard_chips<'a, 'b>(
+    //     &'a self,
+    //     shard: &'b A::Record,
+    // ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    // where
+    //     'a: 'b,
+    // {
+    //     self.chips.iter().filter(|chip| chip.included(shard))
+    // }
 
     /// Returns an iterator over the chips in the machine that are included in the given shard.
     pub fn shard_chips_ordered<'a, 'b>(

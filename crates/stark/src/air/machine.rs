@@ -32,7 +32,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     // }
 
     /// Whether this execution record contains events for this air.
-    fn included(&self, shard: &Self::Record) -> bool;
+    // fn included(&self, shard: &Self::Record) -> bool;
 
     /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {

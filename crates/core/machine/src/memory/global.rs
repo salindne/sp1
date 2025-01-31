@@ -48,89 +48,44 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        match self.kind {
-            MemoryChipType::Initialize => "MemoryGlobalInit".to_string(),
-            MemoryChipType::Finalize => "MemoryGlobalFinalize".to_string(),
-        }
+        "MemoryGlobal".to_string()
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
-    }
+    // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    //     // Do nothing since this chip has no dependencies.
+    // }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut memory_events = match self.kind {
-            MemoryChipType::Initialize => input.global_memory_initialize_events.clone(),
-            MemoryChipType::Finalize => input.global_memory_finalize_events.clone(),
-        };
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .memory_events
+    //         .iter()
+    //         .filter(|event| event.is_global())
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_GLOBAL_MEMORY_COLS];
+    //             let cols: &mut GlobalMemoryCols<F> = row.as_mut_slice().borrow_mut();
+    //             cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
+    //             cols.address = F::from_canonical_u32(event.address);
+    //             cols.value = F::from_canonical_u32(event.value);
+    //             cols.clock = F::from_canonical_u32(event.clock);
+    //             cols.is_read = F::from_canonical_u32(event.is_read as u32);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        let previous_addr_bits = match self.kind {
-            MemoryChipType::Initialize => input.public_values.previous_init_addr_bits,
-            MemoryChipType::Finalize => input.public_values.previous_finalize_addr_bits,
-        };
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_GLOBAL_MEMORY_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        memory_events.sort_by_key(|event| event.addr);
-        let mut rows: Vec<[F; NUM_MEMORY_INIT_COLS]> = (0..memory_events.len()) // OPT: change this to par_iter
-            .map(|i| {
-                let MemoryInitializeFinalizeEvent { addr, value, shard, timestamp, used } =
-                    memory_events[i];
-
-                let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-                let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-                cols.addr = F::from_canonical_u32(addr);
-                cols.addr_bits.populate(addr);
-                cols.shard = F::from_canonical_u32(shard);
-                cols.timestamp = F::from_canonical_u32(timestamp);
-                cols.value = array::from_fn(|i| F::from_canonical_u32((value >> i) & 1));
-                cols.is_real = F::from_canonical_u32(used);
-
-                if i == 0 {
-                    let prev_addr = previous_addr_bits
-                        .iter()
-                        .enumerate()
-                        .map(|(j, bit)| bit * (1 << j))
-                        .sum::<u32>();
-                    cols.is_prev_addr_zero.populate(prev_addr);
-                    cols.is_first_comp = F::from_bool(prev_addr != 0);
-                    if prev_addr != 0 {
-                        debug_assert!(prev_addr < addr, "prev_addr {} < addr {}", prev_addr, addr);
-                        let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
-                        cols.lt_cols.populate(&previous_addr_bits, &addr_bits);
-                    }
-                }
-
-                if i != 0 {
-                    let prev_is_real = memory_events[i - 1].used;
-                    cols.is_next_comp = F::from_canonical_u32(prev_is_real);
-                    let previous_addr = memory_events[i - 1].addr;
-                    assert_ne!(previous_addr, addr);
-
-                    let addr_bits: [_; 32] = array::from_fn(|i| (addr >> i) & 1);
-                    let prev_addr_bits: [_; 32] = array::from_fn(|i| (previous_addr >> i) & 1);
-                    cols.lt_cols.populate(&prev_addr_bits, &addr_bits);
-                }
-
-                if i == memory_events.len() - 1 {
-                    cols.is_last_addr = F::one();
-                }
-
-                row
-            })
-            .collect::<Vec<_>>();
-
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_MEMORY_INIT_COLS],
-            input.fixed_log2_rows::<F, Self>(self),
-        );
-
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MEMORY_INIT_COLS)
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_GLOBAL_MEMORY_COLS)
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

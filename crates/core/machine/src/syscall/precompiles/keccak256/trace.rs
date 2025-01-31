@@ -24,89 +24,55 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "KeccakPermute".to_string()
+        "Keccak256".to_string()
     }
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = 8;
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.keccak256_events.len() / num_cpus::get(), 1);
 
-        let blu_events: Vec<Vec<ByteLookupEvent>> = input
-            .get_precompile_events(SyscallCode::KECCAK_PERMUTE)
-            .par_chunks(chunk_size)
-            .map(|ops: &[(SyscallEvent, PrecompileEvent)]| {
-                // The blu map stores shard -> map(byte lookup event -> multiplicity).
-                let mut blu = Vec::new();
-                let mut chunk = zeroed_f_vec::<F>(NUM_KECCAK_MEM_COLS * NUM_ROUNDS);
-                ops.iter().for_each(|(_, op)| {
-                    if let PrecompileEvent::KeccakPermute(event) = op {
-                        Self::populate_chunk(event, &mut chunk, &mut blu);
-                    } else {
-                        unreachable!();
-                    }
-                });
-                blu
-            })
-            .collect();
-        for blu in blu_events {
-            output.add_byte_lookup_events(blu);
-        }
-    }
+    //     let blu_batches = input
+    //         .keccak256_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_KECCAK256_COLS];
+    //                 let cols: &mut Keccak256Cols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let events = input.get_precompile_events(SyscallCode::KECCAK_PERMUTE);
-        let num_events = events.len();
-        let num_rows = (num_events * NUM_ROUNDS).next_power_of_two();
-        let chunk_size = 8;
-        let values = vec![0u32; num_rows * NUM_KECCAK_MEM_COLS];
-        let mut values = unsafe { std::mem::transmute::<Vec<u32>, Vec<F>>(values) };
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
-        let dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
-        let mut dummy_chunk = Vec::new();
-        for i in 0..NUM_ROUNDS {
-            let dummy_row = dummy_keccak_rows.row(i);
-            let mut row = [F::zero(); NUM_KECCAK_MEM_COLS];
-            row[..NUM_KECCAK_COLS].copy_from_slice(dummy_row.collect::<Vec<_>>().as_slice());
-            dummy_chunk.extend_from_slice(&row);
-        }
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .keccak256_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_KECCAK256_COLS];
+    //             let cols: &mut Keccak256Cols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        values
-            .chunks_mut(chunk_size * NUM_KECCAK_MEM_COLS * NUM_ROUNDS)
-            .enumerate()
-            .par_bridge()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_ROUNDS * NUM_KECCAK_MEM_COLS).enumerate().for_each(
-                    |(j, rounds)| {
-                        let idx = i * chunk_size + j;
-                        if idx < num_events {
-                            let mut new_byte_lookup_events = Vec::new();
-                            if let PrecompileEvent::KeccakPermute(event) = &events[idx].1 {
-                                Self::populate_chunk(event, rounds, &mut new_byte_lookup_events);
-                            } else {
-                                unreachable!();
-                            }
-                        } else {
-                            rounds.copy_from_slice(&dummy_chunk[..rounds.len()]);
-                        }
-                    },
-                );
-            });
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_KECCAK256_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(values, NUM_KECCAK_MEM_COLS);
-
-        // Write the nonce to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut KeccakMemCols<F> =
-                trace.values[i * NUM_KECCAK_MEM_COLS..(i + 1) * NUM_KECCAK_MEM_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
-
-        trace
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_KECCAK256_COLS)
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

@@ -49,12 +49,12 @@ impl<F: Field, A> Chip<F, A> {
     }
 }
 
-impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
-    /// Returns whether the given chip is included in the execution record of the shard.
-    pub fn included(&self, shard: &A::Record) -> bool {
-        self.air.included(shard)
-    }
-}
+// impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
+//     /// Returns whether the given chip is included in the execution record of the shard.
+//     // pub fn included(&self, shard: &A::Record) -> bool {
+//     //     self.air.included(shard)
+//     // }
+// }
 
 impl<F, A> Chip<F, A>
 where
@@ -206,9 +206,9 @@ where
     //     self.air.generate_dependencies(input, output);
     // }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        self.air.included(shard)
-    }
+    // fn included(&self, shard: &Self::Record) -> bool {
+    //     self.air.included(shard)
+    // }
 
     fn commit_scope(&self) -> crate::air::InteractionScope {
         self.air.commit_scope()

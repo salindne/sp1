@@ -101,58 +101,52 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
         "Lt".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let nb_rows = input.lt_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_LT_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .lt_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_LT_COLS];
+    //             let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        values.chunks_mut(chunk_size * NUM_LT_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_LT_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut LtCols<F> = row.borrow_mut();
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_LT_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-                    if idx < nb_rows {
-                        let mut byte_lookup_events = Vec::new();
-                        let event = &input.lt_events[idx];
-                        self.event_to_row(event, cols, &mut byte_lookup_events);
-                    }
-                    cols.nonce = F::from_canonical_usize(idx);
-                });
-            },
-        );
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LT_COLS)
+    // }
 
-        // Convert the trace to a row major matrix.
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.lt_events.len() / num_cpus::get(), 1);
 
-        RowMajorMatrix::new(values, NUM_LT_COLS)
-    }
+    //     let blu_batches = input
+    //         .lt_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_LT_COLS];
+    //                 let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.lt_events.len() / num_cpus::get(), 1);
-
-        let blu_batches = input
-            .lt_events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_LT_COLS];
-                    let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

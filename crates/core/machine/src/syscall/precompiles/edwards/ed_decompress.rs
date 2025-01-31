@@ -11,9 +11,10 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation, PrecompileEvent},
+    // events::{ByteLookupEvent, ByteRecord, EdDecompressEvent, FieldOperation, PrecompileEvent},
     syscalls::SyscallCode,
-    ExecutionRecord, Program,
+    // ExecutionRecord,
+    Program,
 };
 use sp1_curves::{
     edwards::{
@@ -213,54 +214,79 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         "EdDecompress".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
-        let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
+    // fn generate_trace(
+    //     &self,
+    //     input: &Self::Record,
+    //     output: &mut Self::Record,
+    // ) -> RowMajorMatrix<F> {
+    //     let events = input.get_precompile_events(SyscallCode::ED_DECOMPRESS);
 
-        for (_, event) in events {
-            let event = if let PrecompileEvent::EdDecompress(event) = event {
-                event
-            } else {
-                unreachable!();
-            };
-            let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-            let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event.clone(), output);
+    //     let mut rows = Vec::new();
+    //     let mut new_byte_lookup_events = Vec::new();
 
-            rows.push(row);
-        }
+    //     for (_, event) in events {
+    //         let event = if let PrecompileEvent::EdDecompress(event) = event {
+    //             event
+    //         } else {
+    //             unreachable!();
+    //         };
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
-                let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-                let zero = BigUint::zero();
-                cols.populate_field_ops::<E>(&mut vec![], 0, &zero);
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //         let mut row = zeroed_f_vec(NUM_ED_DECOMPRESS_COLS);
+    //         let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
 
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_ED_DECOMPRESS_COLS,
-        );
+    //         cols.is_real = F::one();
+    //         cols.shard = F::from_canonical_u32(event.shard);
+    //         cols.clk = F::from_canonical_u32(event.clk);
+    //         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
+    //         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut EdDecompressCols<F> = trace.values
-                [i * NUM_ED_DECOMPRESS_COLS..(i + 1) * NUM_ED_DECOMPRESS_COLS]
-                .borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
+    //         // Populate memory columns.
+    //         for i in 0..WORDS_CURVE_POINT {
+    //             cols.x_memory[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+    //             cols.y_memory[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+    //         }
 
-        trace
-    }
+    //         // Decode affine points.
+    //         let x = &event.x;
+    //         let y = &event.y;
+    //         let x = BigUint::from_bytes_le(&words_to_bytes_le_vec(x));
+    //         let y = BigUint::from_bytes_le(&words_to_bytes_le_vec(y));
+
+    //         Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x, y);
+
+    //         rows.push(row);
+    //     }
+
+    //     output.add_byte_lookup_events(new_byte_lookup_events);
+
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || {
+    //             let mut row = zeroed_f_vec(NUM_ED_DECOMPRESS_COLS);
+    //             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
+    //             let zero = BigUint::zero();
+    //             Self::populate_field_ops(&mut vec![], 0, cols, zero.clone(), zero);
+    //             row
+    //         },
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
+
+    //     // Convert the trace to a row major matrix.
+    //     let mut trace = RowMajorMatrix::new(
+    //         rows.into_iter().flatten().collect::<Vec<_>>(),
+    //         NUM_ED_DECOMPRESS_COLS,
+    //     );
+
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut EdDecompressCols<F> = trace.values
+    //             [i * NUM_ED_DECOMPRESS_COLS..(i + 1) * NUM_ED_DECOMPRESS_COLS]
+    //             .borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
+
+    //     trace
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

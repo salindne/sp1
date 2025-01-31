@@ -28,84 +28,52 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         "CPU".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let n_real_rows = input.cpu_events.len();
-        let padded_nb_rows = if let Some(shape) = &input.shape {
-            1 << shape.inner[&MachineAir::<F>::name(self)]
-        } else if n_real_rows < 16 {
-            16
-        } else {
-            n_real_rows.next_power_of_two()
-        };
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_CPU_COLS);
-        let shard = input.public_values.execution_shard;
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .cpu_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_CPU_COLS];
+    //             let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        values.chunks_mut(chunk_size * NUM_CPU_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_CPU_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut CpuCols<F> = row.borrow_mut();
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_CPU_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-                    if idx >= input.cpu_events.len() {
-                        cols.selectors.imm_b = F::one();
-                        cols.selectors.imm_c = F::one();
-                    } else {
-                        let mut byte_lookup_events = Vec::new();
-                        let event = &input.cpu_events[idx];
-                        let instruction = &input.program.fetch(event.pc);
-                        self.event_to_row(
-                            event,
-                            &input.nonce_lookup,
-                            cols,
-                            &mut byte_lookup_events,
-                            shard,
-                            instruction,
-                        );
-                    }
-                });
-            },
-        );
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS)
+    // }
 
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_CPU_COLS)
-    }
+    // fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+    //     let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
 
-    #[instrument(name = "generate cpu dependencies", level = "debug", skip_all)]
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
-        // Generate the trace rows for each event.
-        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
-        let shard = input.public_values.execution_shard;
+    //     let blu_batches = input
+    //         .cpu_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_CPU_COLS];
+    //                 let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-        let blu_events: Vec<_> = input
-            .cpu_events
-            .par_chunks(chunk_size)
-            .map(|ops: &[CpuEvent]| {
-                // The blu map stores shard -> map(byte lookup event -> multiplicity).
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                ops.iter().for_each(|op| {
-                    let mut row = [F::zero(); NUM_CPU_COLS];
-                    let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-                    let instruction = &input.program.fetch(op.pc);
-                    self.event_to_row::<F>(
-                        op,
-                        &input.nonce_lookup,
-                        cols,
-                        &mut blu,
-                        shard,
-                        instruction,
-                    );
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_events.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

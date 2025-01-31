@@ -74,55 +74,55 @@ impl<F: PrimeField32> MachineAir<F> for SyscallChip {
         format!("Syscall{}", self.shard_kind).to_string()
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
-    }
+    // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    //     // Do nothing since this chip has no dependencies.
+    // }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut rows = Vec::new();
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     let mut rows = Vec::new();
 
-        let row_fn = |syscall_event: &SyscallEvent| {
-            let mut row = [F::zero(); NUM_SYSCALL_COLS];
-            let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
+    //     let row_fn = |syscall_event: &SyscallEvent| {
+    //         let mut row = [F::zero(); NUM_SYSCALL_COLS];
+    //         let cols: &mut SyscallCols<F> = row.as_mut_slice().borrow_mut();
 
-            cols.shard = F::from_canonical_u32(syscall_event.shard);
-            cols.clk = F::from_canonical_u32(syscall_event.clk);
-            cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_id);
-            cols.nonce = F::from_canonical_u32(syscall_event.nonce);
-            cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
-            cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
-            cols.is_real = F::one();
-            row
-        };
+    //         cols.shard = F::from_canonical_u32(syscall_event.shard);
+    //         cols.clk = F::from_canonical_u32(syscall_event.clk);
+    //         cols.syscall_id = F::from_canonical_u32(syscall_event.syscall_id);
+    //         cols.nonce = F::from_canonical_u32(syscall_event.nonce);
+    //         cols.arg1 = F::from_canonical_u32(syscall_event.arg1);
+    //         cols.arg2 = F::from_canonical_u32(syscall_event.arg2);
+    //         cols.is_real = F::one();
+    //         row
+    //     };
 
-        match self.shard_kind {
-            SyscallShardKind::Core => {
-                for event in input.syscall_events.iter() {
-                    let row = row_fn(event);
-                    rows.push(row);
-                }
-            }
-            SyscallShardKind::Precompile => {
-                for event in input.precompile_events.all_events().map(|(event, _)| event) {
-                    let row = row_fn(event);
-                    rows.push(row);
-                }
-            }
-        };
+    //     match self.shard_kind {
+    //         SyscallShardKind::Core => {
+    //             for event in input.syscall_events.iter() {
+    //                 let row = row_fn(event);
+    //                 rows.push(row);
+    //             }
+    //         }
+    //         SyscallShardKind::Precompile => {
+    //             for event in input.precompile_events.all_events().map(|(event, _)| event) {
+    //                 let row = row_fn(event);
+    //                 rows.push(row);
+    //             }
+    //         }
+    //     };
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_SYSCALL_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_SYSCALL_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SYSCALL_COLS)
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_SYSCALL_COLS)
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

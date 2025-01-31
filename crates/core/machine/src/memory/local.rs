@@ -77,55 +77,41 @@ impl<F: PrimeField32> MachineAir<F> for MemoryLocalChip {
         "MemoryLocal".to_string()
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
-    }
+    // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    //     // Do nothing since this chip has no dependencies.
+    // }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let events = input.get_local_mem_events().collect::<Vec<_>>();
-        let nb_rows = (events.len() + 3) / 4;
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_MEMORY_LOCAL_INIT_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .memory_events
+    //         .iter()
+    //         .filter(|event| event.is_local())
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_LOCAL_MEMORY_COLS];
+    //             let cols: &mut LocalMemoryCols<F> = row.as_mut_slice().borrow_mut();
+    //             cols.shard = F::from_canonical_u32(input.public_values.execution_shard);
+    //             cols.address = F::from_canonical_u32(event.address);
+    //             cols.value = F::from_canonical_u32(event.value);
+    //             cols.clock = F::from_canonical_u32(event.clock);
+    //             cols.is_read = F::from_canonical_u32(event.is_read as u32);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        values
-            .chunks_mut(chunk_size * NUM_MEMORY_LOCAL_INIT_COLS)
-            .enumerate()
-            .par_bridge()
-            .for_each(|(i, rows)| {
-                rows.chunks_mut(NUM_MEMORY_LOCAL_INIT_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = (i * chunk_size + j) * NUM_LOCAL_MEMORY_ENTRIES_PER_ROW;
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_LOCAL_MEMORY_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-                    let cols: &mut MemoryLocalCols<F> = row.borrow_mut();
-                    for k in 0..NUM_LOCAL_MEMORY_ENTRIES_PER_ROW {
-                        let cols = &mut cols.memory_local_entries[k];
-                        if idx + k < events.len() {
-                            let event = &events[idx + k];
-                            cols.addr = F::from_canonical_u32(event.addr);
-                            cols.initial_shard =
-                                F::from_canonical_u32(event.initial_mem_access.shard);
-                            cols.final_shard = F::from_canonical_u32(event.final_mem_access.shard);
-                            cols.initial_clk =
-                                F::from_canonical_u32(event.initial_mem_access.timestamp);
-                            cols.final_clk =
-                                F::from_canonical_u32(event.final_mem_access.timestamp);
-                            cols.initial_value = event.initial_mem_access.value.into();
-                            cols.final_value = event.final_mem_access.value.into();
-                            cols.is_real = F::one();
-                        }
-                    }
-                });
-            });
-
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_MEMORY_LOCAL_INIT_COLS)
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LOCAL_MEMORY_COLS)
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

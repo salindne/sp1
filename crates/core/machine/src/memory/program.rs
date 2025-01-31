@@ -107,45 +107,44 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         Some(RowMajorMatrix::new(values, NUM_MEMORY_PROGRAM_PREPROCESSED_COLS))
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
-    }
+    // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    //     // Do nothing since this chip has no dependencies.
+    // }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let program_memory_addrs = input.program.memory_image.keys().copied().sorted();
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     let program_memory_addrs = input.program.memory_image.keys().copied().sorted();
 
-        let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
+    //     let mult = if input.public_values.shard == 1 { F::one() } else { F::zero() };
 
-        // Generate the trace rows for each event.
-        let mut rows = program_memory_addrs
-            .into_iter()
-            .map(|_| {
-                let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
-                let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
-                cols.multiplicity = mult;
-                cols.is_first_shard.populate(input.public_values.shard - 1);
-                row
-            })
-            .collect::<Vec<_>>();
+    //     // Generate the trace rows for each event.
+    //     let mut rows = program_memory_addrs
+    //         .into_iter()
+    //         .map(|_| {
+    //             let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
+    //             let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
+    //             cols.multiplicity = mult;
+    //             cols.is_first_shard.populate(input.public_values.shard - 1);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        // Pad the trace to a power of two depending on the proof shape in `input`.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        // Convert the trace to a row major matrix.
-
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_MEMORY_PROGRAM_MULT_COLS,
-        )
-    }
+    //     // Convert the trace to a row major matrix.
+    //     RowMajorMatrix::new(
+    //         rows.into_iter().flatten().collect::<Vec<_>>(),
+    //         NUM_MEMORY_PROGRAM_MULT_COLS,
+    //     )
+    // }
 
     fn included(&self, _: &Self::Record) -> bool {
         true

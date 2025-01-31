@@ -13,11 +13,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
-use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, PrecompileEvent},
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
-};
+use sp1_core_executor::{syscalls::SyscallCode, Program};
 use sp1_curves::{
     edwards::{ed25519::Ed25519BaseField, EdwardsParameters, NUM_LIMBS, WORDS_CURVE_POINT},
     params::{FieldParameters, Limbs, NumLimbs},
@@ -113,89 +109,89 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         "EdAddAssign".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let events = input.get_precompile_events(SyscallCode::ED_ADD);
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     let events = input.get_precompile_events(SyscallCode::ED_ADD);
 
-        let mut rows = events
-            .par_iter()
-            .map(|(_, event)| {
-                let event = if let PrecompileEvent::EdAdd(event) = event {
-                    event
-                } else {
-                    unreachable!();
-                };
+    //     let mut rows = events
+    //         .par_iter()
+    //         .map(|(_, event)| {
+    //             let event = if let PrecompileEvent::EdAdd(event) = event {
+    //                 event
+    //             } else {
+    //                 unreachable!();
+    //             };
 
-                let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                let mut blu = Vec::new();
-                self.event_to_row(event, cols, &mut blu);
-                row
-            })
-            .collect::<Vec<_>>();
+    //             let mut row = [F::zero(); NUM_ED_ADD_COLS];
+    //             let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+    //             let mut blu = Vec::new();
+    //             self.event_to_row(event, cols, &mut blu);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                let zero = BigUint::zero();
-                Self::populate_field_ops(
-                    &mut vec![],
-                    0,
-                    cols,
-                    zero.clone(),
-                    zero.clone(),
-                    zero.clone(),
-                    zero,
-                );
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || {
+    //             let mut row = [F::zero(); NUM_ED_ADD_COLS];
+    //             let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+    //             let zero = BigUint::zero();
+    //             Self::populate_field_ops(
+    //                 &mut vec![],
+    //                 0,
+    //                 cols,
+    //                 zero.clone(),
+    //                 zero.clone(),
+    //                 zero.clone(),
+    //                 zero,
+    //             );
+    //             row
+    //         },
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_ADD_COLS);
+    //     // Convert the trace to a row major matrix.
+    //     let mut trace =
+    //         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ED_ADD_COLS);
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut EdAddAssignCols<F> =
-                trace.values[i * NUM_ED_ADD_COLS..(i + 1) * NUM_ED_ADD_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut EdAddAssignCols<F> =
+    //             trace.values[i * NUM_ED_ADD_COLS..(i + 1) * NUM_ED_ADD_COLS].borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
 
-        trace
-    }
+    //     trace
+    // }
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let events = input.get_precompile_events(SyscallCode::ED_ADD);
-        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let events = input.get_precompile_events(SyscallCode::ED_ADD);
+    //     let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
-        let blu_batches = events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|(_, event)| {
-                    let event = if let PrecompileEvent::EdAdd(event) = event {
-                        event
-                    } else {
-                        unreachable!();
-                    };
+    //     let blu_batches = events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|(_, event)| {
+    //                 let event = if let PrecompileEvent::EdAdd(event) = event {
+    //                     event
+    //                 } else {
+    //                     unreachable!();
+    //                 };
 
-                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
+    //                 let mut row = [F::zero(); NUM_ED_ADD_COLS];
+    //                 let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

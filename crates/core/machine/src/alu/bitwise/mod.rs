@@ -66,62 +66,52 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         "Bitwise".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut rows = input
-            .bitwise_events
-            .par_iter()
-            .map(|event| {
-                let mut row = [F::zero(); NUM_BITWISE_COLS];
-                let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
-                let mut blu = Vec::new();
-                self.event_to_row(event, cols, &mut blu);
-                row
-            })
-            .collect::<Vec<_>>();
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .bitwise_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_BITWISE_COLS];
+    //             let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-        // Pad the trace to a power of two.
-        pad_rows_fixed(
-            &mut rows,
-            || [F::zero(); NUM_BITWISE_COLS],
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_BITWISE_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BITWISE_COLS);
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_BITWISE_COLS)
+    // }
 
-        for i in 0..trace.height() {
-            let cols: &mut BitwiseCols<F> =
-                trace.values[i * NUM_BITWISE_COLS..(i + 1) * NUM_BITWISE_COLS].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.bitwise_events.len() / num_cpus::get(), 1);
 
-        trace
-    }
+    //     let blu_batches = input
+    //         .bitwise_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_BITWISE_COLS];
+    //                 let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.bitwise_events.len() / num_cpus::get(), 1);
-
-        let blu_batches = input
-            .bitwise_events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_BITWISE_COLS];
-                    let cols: &mut BitwiseCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

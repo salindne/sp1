@@ -72,63 +72,52 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         "AddSub".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the rows for the trace.
-        let chunk_size =
-            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
-        let merged_events =
-            input.add_events.iter().chain(input.sub_events.iter()).collect::<Vec<_>>();
-        let nb_rows = merged_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_ADD_SUB_COLS);
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.add_sub_events.len() / num_cpus::get(), 1);
 
-        values.chunks_mut(chunk_size * NUM_ADD_SUB_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_ADD_SUB_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut AddSubCols<F> = row.borrow_mut();
+    //     let blu_batches = input
+    //         .add_sub_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_ADD_SUB_COLS];
+    //                 let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-                    if idx < merged_events.len() {
-                        let mut byte_lookup_events = Vec::new();
-                        let event = &merged_events[idx];
-                        self.event_to_row(event, cols, &mut byte_lookup_events);
-                    }
-                    cols.nonce = F::from_canonical_usize(idx);
-                });
-            },
-        );
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_ADD_SUB_COLS)
-    }
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let mut rows = input
+    //         .add_sub_events
+    //         .iter()
+    //         .map(|event| {
+    //             let mut row = [F::zero(); NUM_ADD_SUB_COLS];
+    //             let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
+    //             self.event_to_row(event, cols, &mut None);
+    //             row
+    //         })
+    //         .collect::<Vec<_>>();
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size =
-            std::cmp::max((input.add_events.len() + input.sub_events.len()) / num_cpus::get(), 1);
+    //     // Pad the trace to a power of two depending on the proof shape in `input`.
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || [F::zero(); NUM_ADD_SUB_COLS],
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        let event_iter =
-            input.add_events.chunks(chunk_size).chain(input.sub_events.chunks(chunk_size));
-
-        let blu_batches = event_iter
-            .par_bridge()
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_ADD_SUB_COLS];
-                    let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
-
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS)
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

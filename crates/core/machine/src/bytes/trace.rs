@@ -32,34 +32,34 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         Some(trace)
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
-        // Do nothing since this chip has no dependencies.
-    }
+    // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    //     // Do nothing since this chip has no dependencies.
+    // }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let mut trace =
-            RowMajorMatrix::new(zeroed_f_vec(NUM_BYTE_MULT_COLS * NUM_ROWS), NUM_BYTE_MULT_COLS);
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     let mut trace =
+    //         RowMajorMatrix::new(zeroed_f_vec(NUM_BYTE_MULT_COLS * NUM_ROWS), NUM_BYTE_MULT_COLS);
 
-        for (_, blu) in input.byte_lookups.iter() {
-            for (lookup, mult) in blu.iter() {
-                let row = if lookup.opcode != ByteOpcode::U16Range {
-                    (((lookup.b as u16) << 8) + lookup.c as u16) as usize
-                } else {
-                    lookup.a1 as usize
-                };
-                let index = lookup.opcode as usize;
+    //     for (_, blu) in input.byte_lookups.iter() {
+    //         for (lookup, mult) in blu.iter() {
+    //             let row = if lookup.opcode != ByteOpcode::U16Range {
+    //                 (((lookup.b as u16) << 8) + lookup.c as u16) as usize
+    //             } else {
+    //                 lookup.a1 as usize
+    //             };
+    //             let index = lookup.opcode as usize;
 
-                let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
-                cols.multiplicities[index] += F::from_canonical_usize(*mult);
-            }
-        }
+    //             let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
+    //             cols.multiplicities[index] += F::from_canonical_usize(*mult);
+    //         }
+    //     }
 
-        trace
-    }
+    //     trace
+    // }
 
     fn included(&self, _shard: &Self::Record) -> bool {
         true

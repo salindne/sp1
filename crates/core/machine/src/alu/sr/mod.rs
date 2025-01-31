@@ -143,60 +143,60 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         "ShiftRight".to_string()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        _: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-        let nb_rows = input.shift_right_events.len();
-        let size_log2 = input.fixed_log2_rows::<F, _>(self);
-        let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
-        let mut values = zeroed_f_vec(padded_nb_rows * NUM_SHIFT_RIGHT_COLS);
-        let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     _: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     // Generate the trace rows for each event.
+    //     let nb_rows = input.shift_right_events.len();
+    //     let size_log2 = input.fixed_log2_rows::<F, _>(self);
+    //     let padded_nb_rows = next_power_of_two(nb_rows, size_log2);
+    //     let mut values = zeroed_f_vec(padded_nb_rows * NUM_SHIFT_RIGHT_COLS);
+    //     let chunk_size = std::cmp::max((nb_rows + 1) / num_cpus::get(), 1);
 
-        values.chunks_mut(chunk_size * NUM_SHIFT_RIGHT_COLS).enumerate().par_bridge().for_each(
-            |(i, rows)| {
-                rows.chunks_mut(NUM_SHIFT_RIGHT_COLS).enumerate().for_each(|(j, row)| {
-                    let idx = i * chunk_size + j;
-                    let cols: &mut ShiftRightCols<F> = row.borrow_mut();
+    //     values.chunks_mut(chunk_size * NUM_SHIFT_RIGHT_COLS).enumerate().par_bridge().for_each(
+    //         |(i, rows)| {
+    //             rows.chunks_mut(NUM_SHIFT_RIGHT_COLS).enumerate().for_each(|(j, row)| {
+    //                 let idx = i * chunk_size + j;
+    //                 let cols: &mut ShiftRightCols<F> = row.borrow_mut();
 
-                    if idx < nb_rows {
-                        let mut byte_lookup_events = Vec::new();
-                        let event = &input.shift_right_events[idx];
-                        self.event_to_row(event, cols, &mut byte_lookup_events);
-                    } else {
-                        cols.shift_by_n_bits[0] = F::one();
-                        cols.shift_by_n_bytes[0] = F::one();
-                    }
-                    cols.nonce = F::from_canonical_usize(idx);
-                });
-            },
-        );
+    //                 if idx < nb_rows {
+    //                     let mut byte_lookup_events = Vec::new();
+    //                     let event = &input.shift_right_events[idx];
+    //                     self.event_to_row(event, cols, &mut byte_lookup_events);
+    //                 } else {
+    //                     cols.shift_by_n_bits[0] = F::one();
+    //                     cols.shift_by_n_bytes[0] = F::one();
+    //                 }
+    //                 cols.nonce = F::from_canonical_usize(idx);
+    //             });
+    //         },
+    //     );
 
-        // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(values, NUM_SHIFT_RIGHT_COLS)
-    }
+    //     // Convert the trace to a row major matrix.
+    //     RowMajorMatrix::new(values, NUM_SHIFT_RIGHT_COLS)
+    // }
 
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        let chunk_size = std::cmp::max(input.shift_right_events.len() / num_cpus::get(), 1);
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     let chunk_size = std::cmp::max(input.shift_right_events.len() / num_cpus::get(), 1);
 
-        let blu_batches = input
-            .shift_right_events
-            .par_chunks(chunk_size)
-            .map(|events| {
-                let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
-                events.iter().for_each(|event| {
-                    let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
-                    let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
-                    self.event_to_row(event, cols, &mut blu);
-                });
-                blu
-            })
-            .collect::<Vec<_>>();
+    //     let blu_batches = input
+    //         .shift_right_events
+    //         .par_chunks(chunk_size)
+    //         .map(|events| {
+    //             let mut blu: HashMap<u32, HashMap<ByteLookupEvent, usize>> = HashMap::new();
+    //             events.iter().for_each(|event| {
+    //                 let mut row = [F::zero(); NUM_SHIFT_RIGHT_COLS];
+    //                 let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
+    //                 self.event_to_row(event, cols, &mut blu);
+    //             });
+    //             blu
+    //         })
+    //         .collect::<Vec<_>>();
 
-        output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
-    }
+    //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {
