@@ -1,3 +1,4 @@
+// #![no_std]
 pub mod edwards;
 pub mod params;
 // pub mod polynomial;

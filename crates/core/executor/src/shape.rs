@@ -5,7 +5,7 @@ use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 use sp1_stark::{air::MachineAir, ProofShape};
 
-use crate::{ExecutionRecord, Program};
+use crate::Program;
 
 /// The shape of a core proof.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -30,13 +30,13 @@ impl CoreShape {
     /// Create a dummy execution record with this shape.
     ///
     /// This can be used to generate dummy traces.
-    #[must_use]
-    pub fn dummy_record(&self) -> ExecutionRecord {
-        let program = Arc::new(self.dummy_program());
-        let mut record = ExecutionRecord::new(program);
-        record.shape = Some(self.clone());
-        record
-    }
+    // #[must_use]
+    // pub fn dummy_record(&self) -> ExecutionRecord {
+    //     let program = Arc::new(self.dummy_program());
+    //     let mut record = ExecutionRecord::new(program);
+    //     record.shape = Some(self.clone());
+    //     record
+    // }
 
     /// Determines whether the execution record contains a trace for a given chip.
     pub fn included<F: PrimeField, A: MachineAir<F>>(&self, air: &A) -> bool {

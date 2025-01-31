@@ -19,14 +19,14 @@
 #![allow(clippy::explicit_iter_loop)]
 #![warn(missing_docs)]
 
-mod context;
-mod dependencies;
-mod disassembler;
-pub mod events;
-mod executor;
-mod hook;
+// mod context;
+// mod dependencies;
+// mod disassembler;
+// pub mod events;
+// mod executor;
+// mod hook;
 mod instruction;
-mod io;
+// mod io;
 mod memory;
 mod opcode;
 #[cfg(feature = "profiling")]
@@ -34,26 +34,26 @@ mod profiler;
 mod program;
 #[cfg(any(test, feature = "programs"))]
 pub mod programs;
-mod record;
+// mod record;
 mod reduce;
 mod register;
-mod report;
+// mod report;
 mod shape;
-mod state;
+// mod state;
 pub mod subproof;
-pub mod syscalls;
+// pub mod syscalls;
 mod utils;
 
-pub use context::*;
-pub use executor::*;
-pub use hook::*;
+// pub use context::*;
+// pub use executor::*;
+// pub use hook::*;
 pub use instruction::*;
 pub use opcode::*;
 pub use program::*;
-pub use record::*;
+// pub use record::*;
 pub use reduce::*;
 pub use register::*;
-pub use report::*;
+// pub use report::*;
 pub use shape::*;
-pub use state::*;
+// pub use state::*;
 pub use utils::*;

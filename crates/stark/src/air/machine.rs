@@ -24,12 +24,12 @@ pub trait MachineAir<F: Field>: BaseAir<F> + 'static + Send + Sync {
     /// - `input` is the execution record containing the events to be written to the trace.
     /// - `output` is the execution record containing events that the `MachineAir` can add to the
     ///   record such as byte lookup requests.
-    fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F>;
+    // fn generate_trace(&self, input: &Self::Record, output: &mut Self::Record) -> RowMajorMatrix<F>;
 
-    /// Generate the dependencies for a given execution record.
-    fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
-        self.generate_trace(input, output);
-    }
+    // /// Generate the dependencies for a given execution record.
+    // fn generate_dependencies(&self, input: &Self::Record, output: &mut Self::Record) {
+    //     self.generate_trace(input, output);
+    // }
 
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;

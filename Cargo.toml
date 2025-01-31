@@ -9,31 +9,13 @@ categories = ["cryptography"]
 
 [workspace]
 members = [
-  # "crates/build",
-  # "crates/cli",
   "crates/core/executor",
   "crates/core/machine",
   "crates/curves",
   "crates/derive",
-  # "crates/eval",
-  # "crates/helper",
-
-  # "crates/perf",
   "crates/primitives",
   "crates/prover",
-  # "crates/recursion/circuit",
-  # "crates/recursion/compiler",
-  # "crates/recursion/core",
-  # "crates/recursion/derive",
-  # "crates/recursion/gnark-cli",
-  # "crates/recursion/gnark-ffi",
-  # "crates/sdk",
-  # "crates/cuda",
-  # "crates/verifier",
   "crates/stark",
-  # "crates/verifier",
-  # "crates/zkvm/*",
-  # "crates/test-artifacts",
 ]
 exclude = ["examples/target"]
 resolver = "2"

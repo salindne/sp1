@@ -194,50 +194,6 @@ impl<'a> Executor<'a> {
         Self::with_context(program, opts, SP1Context::default())
     }
 
-    /// Create a new runtime for the program, and setup the profiler if `TRACE_FILE` env var is set
-    /// and the feature flag `profiling` is enabled.
-    #[must_use]
-    pub fn with_context_and_elf(
-        opts: SP1CoreOpts,
-        context: SP1Context<'a>,
-        elf_bytes: &[u8],
-    ) -> Self {
-        let program = Program::from(elf_bytes).expect("Failed to create program from ELF bytes");
-
-        #[cfg(not(feature = "profiling"))]
-        return Self::with_context(program, opts, context);
-
-        #[cfg(feature = "profiling")]
-        {
-            let mut this = Self::with_context(program, opts, context);
-
-            let trace_buf = std::env::var("TRACE_FILE").ok().map(|file| {
-                let file = File::create(file).unwrap();
-                BufWriter::new(file)
-            });
-
-            if let Some(trace_buf) = trace_buf {
-                println!("Profiling enabled");
-
-                let sample_rate = std::env::var("TRACE_SAMPLE_RATE")
-                    .ok()
-                    .and_then(|rate| {
-                        println!("Profiling sample rate: {rate}");
-                        rate.parse::<u32>().ok()
-                    })
-                    .unwrap_or(1);
-
-                this.profiler = Some((
-                    Profiler::new(elf_bytes, sample_rate as u64)
-                        .expect("Failed to create profiler"),
-                    trace_buf,
-                ));
-            }
-
-            this
-        }
-    }
-
     /// Create a new runtime from a program, options, and a context.
     ///
     /// Note: This function *will not* set up the profiler.
@@ -809,33 +765,33 @@ impl<'a> Executor<'a> {
     }
 
     /// Fetch the input operand values for a load instruction.
-    fn load_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32, u32, u32) {
-        let (rd, rs1, imm) = instruction.i_type();
-        let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
-        let addr = b.wrapping_add(c);
-        let memory_value = self.mr_cpu(align(addr), MemoryAccessPosition::Memory);
-        (rd, b, c, addr, memory_value)
-    }
+    // fn load_rr(&mut self, instruction: &Instruction) -> (Register, u32, u32, u32, u32) {
+    //     let (rd, rs1, imm) = instruction.i_type();
+    //     let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
+    //     let addr = b.wrapping_add(c);
+    //     let memory_value = self.mr_cpu(align(addr), MemoryAccessPosition::Memory);
+    //     (rd, b, c, addr, memory_value)
+    // }
 
-    /// Fetch the input operand values for a store instruction.
-    fn store_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32, u32) {
-        let (rs1, rs2, imm) = instruction.s_type();
-        let c = imm;
-        let b = self.rr(rs2, MemoryAccessPosition::B);
-        let a = self.rr(rs1, MemoryAccessPosition::A);
-        let addr = b.wrapping_add(c);
-        let memory_value = self.word(align(addr));
-        (a, b, c, addr, memory_value)
-    }
+    // /// Fetch the input operand values for a store instruction.
+    // fn store_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32, u32, u32) {
+    //     let (rs1, rs2, imm) = instruction.s_type();
+    //     let c = imm;
+    //     let b = self.rr(rs2, MemoryAccessPosition::B);
+    //     let a = self.rr(rs1, MemoryAccessPosition::A);
+    //     let addr = b.wrapping_add(c);
+    //     let memory_value = self.word(align(addr));
+    //     (a, b, c, addr, memory_value)
+    // }
 
-    /// Fetch the input operand values for a branch instruction.
-    fn branch_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
-        let (rs1, rs2, imm) = instruction.b_type();
-        let c = imm;
-        let b = self.rr(rs2, MemoryAccessPosition::B);
-        let a = self.rr(rs1, MemoryAccessPosition::A);
-        (a, b, c)
-    }
+    // /// Fetch the input operand values for a branch instruction.
+    // fn branch_rr(&mut self, instruction: &Instruction) -> (u32, u32, u32) {
+    //     let (rs1, rs2, imm) = instruction.b_type();
+    //     let c = imm;
+    //     let b = self.rr(rs2, MemoryAccessPosition::B);
+    //     let a = self.rr(rs1, MemoryAccessPosition::A);
+    //     (a, b, c)
+    // }
 
     /// Fetch the instruction at the current program counter.
     #[inline]

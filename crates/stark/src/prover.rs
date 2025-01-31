@@ -63,39 +63,39 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     /// Copy the proving key from the device to the host.
     fn pk_to_host(&self, pk: &Self::DeviceProvingKey) -> StarkProvingKey<SC>;
 
-    /// Generate the main traces.
-    fn generate_traces(
-        &self,
-        record: &A::Record,
-        interaction_scope: InteractionScope,
-    ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
-        let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
-        let chips = shard_chips
-            .iter()
-            .filter(|chip| chip.commit_scope() == interaction_scope)
-            .collect::<Vec<_>>();
-        assert!(!chips.is_empty());
+    // /// Generate the main traces.
+    // fn generate_traces(
+    //     &self,
+    //     record: &A::Record,
+    //     interaction_scope: InteractionScope,
+    // ) -> Vec<(String, RowMajorMatrix<Val<SC>>)> {
+    //     let shard_chips = self.shard_chips(record).collect::<Vec<_>>();
+    //     let chips = shard_chips
+    //         .iter()
+    //         .filter(|chip| chip.commit_scope() == interaction_scope)
+    //         .collect::<Vec<_>>();
+    //     assert!(!chips.is_empty());
 
-        // For each chip, generate the trace.
-        let parent_span = tracing::debug_span!("generate traces for shard");
-        parent_span.in_scope(|| {
-            chips
-                .par_iter()
-                .map(|chip| {
-                    let chip_name = chip.name();
-                    let begin = Instant::now();
-                    let trace = chip.generate_trace(record, &mut A::Record::default());
-                    tracing::debug!(
-                        parent: &parent_span,
-                        "generated trace for chip {} in {:?}",
-                        chip_name,
-                        begin.elapsed()
-                    );
-                    (chip_name, trace)
-                })
-                .collect::<Vec<_>>()
-        })
-    }
+    //     // For each chip, generate the trace.
+    //     let parent_span = tracing::debug_span!("generate traces for shard");
+    //     parent_span.in_scope(|| {
+    //         chips
+    //             .par_iter()
+    //             .map(|chip| {
+    //                 let chip_name = chip.name();
+    //                 let begin = Instant::now();
+    //                 let trace = chip.generate_trace(record, &mut A::Record::default());
+    //                 tracing::debug!(
+    //                     parent: &parent_span,
+    //                     "generated trace for chip {} in {:?}",
+    //                     chip_name,
+    //                     begin.elapsed()
+    //                 );
+    //                 (chip_name, trace)
+    //             })
+    //             .collect::<Vec<_>>()
+    //     })
+    // }
 
     /// Commit to the main traces.
     fn commit(
@@ -162,17 +162,17 @@ pub trait MachineProver<SC: StarkGenericConfig, A: MachineAir<SC::Val>>:
     }
 
     /// Debug the constraints for the given inputs.
-    fn debug_constraints(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        records: Vec<A::Record>,
-        challenger: &mut SC::Challenger,
-    ) where
-        SC::Val: PrimeField32,
-        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
-        self.machine().debug_constraints(pk, records, challenger);
-    }
+    // fn debug_constraints(
+    //     &self,
+    //     pk: &StarkProvingKey<SC>,
+    //     records: Vec<A::Record>,
+    //     challenger: &mut SC::Challenger,
+    // ) where
+    //     SC::Val: PrimeField32,
+    //     A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    // {
+    //     self.machine().debug_constraints(pk, records, challenger);
+    // }
 
     /// Merge the global and local chips' sorted traces.
     #[allow(clippy::type_complexity)]
@@ -801,86 +801,86 @@ where
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    #[allow(clippy::needless_for_each)]
-    fn prove(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        mut records: Vec<A::Record>,
-        challenger: &mut SC::Challenger,
-        opts: <A::Record as MachineRecord>::Config,
-    ) -> Result<MachineProof<SC>, Self::Error>
-    where
-        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
-        // Observe the preprocessed commitment.
-        pk.observe_into(challenger);
+    // #[allow(clippy::needless_for_each)]
+    // fn prove(
+    //     &self,
+    //     pk: &StarkProvingKey<SC>,
+    //     mut records: Vec<A::Record>,
+    //     challenger: &mut SC::Challenger,
+    //     opts: <A::Record as MachineRecord>::Config,
+    // ) -> Result<MachineProof<SC>, Self::Error>
+    // where
+    //     A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    // {
+    //     // Observe the preprocessed commitment.
+    //     pk.observe_into(challenger);
 
-        let contains_global_bus = self.machine().contains_global_bus();
+    //     let contains_global_bus = self.machine().contains_global_bus();
 
-        if contains_global_bus {
-            // Generate dependencies.
-            self.machine().generate_dependencies(&mut records, &opts, None);
-        }
+    //     if contains_global_bus {
+    //         // Generate dependencies.
+    //         self.machine().generate_dependencies(&mut records, &opts, None);
+    //     }
 
-        // Generate and commit the global traces for each shard.
-        let global_data = records
-            .par_iter()
-            .map(|record| {
-                if contains_global_bus {
-                    let global_named_traces =
-                        self.generate_traces(record, InteractionScope::Global);
-                    Some(self.commit(record, global_named_traces))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
+    //     // Generate and commit the global traces for each shard.
+    //     let global_data = records
+    //         .par_iter()
+    //         .map(|record| {
+    //             if contains_global_bus {
+    //                 let global_named_traces =
+    //                     self.generate_traces(record, InteractionScope::Global);
+    //                 Some(self.commit(record, global_named_traces))
+    //             } else {
+    //                 None
+    //             }
+    //         })
+    //         .collect::<Vec<_>>();
 
-        // Observe the challenges for each segment.
-        tracing::debug_span!("observing all challenges").in_scope(|| {
-            global_data.iter().zip_eq(records.iter()).for_each(|(global_data, record)| {
-                if contains_global_bus {
-                    challenger.observe(
-                        global_data
-                            .as_ref()
-                            .expect("must have a global commitment")
-                            .main_commit
-                            .clone(),
-                    );
-                }
-                challenger.observe_slice(&record.public_values::<SC::Val>()[0..self.num_pv_elts()]);
-            });
-        });
+    //     // Observe the challenges for each segment.
+    //     tracing::debug_span!("observing all challenges").in_scope(|| {
+    //         global_data.iter().zip_eq(records.iter()).for_each(|(global_data, record)| {
+    //             if contains_global_bus {
+    //                 challenger.observe(
+    //                     global_data
+    //                         .as_ref()
+    //                         .expect("must have a global commitment")
+    //                         .main_commit
+    //                         .clone(),
+    //                 );
+    //             }
+    //             challenger.observe_slice(&record.public_values::<SC::Val>()[0..self.num_pv_elts()]);
+    //         });
+    //     });
 
-        // Obtain the challenges used for the global permutation argument.
-        let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
-            if contains_global_bus {
-                challenger.sample_ext_element()
-            } else {
-                SC::Challenge::zero()
-            }
-        });
+    //     // Obtain the challenges used for the global permutation argument.
+    //     let global_permutation_challenges: [SC::Challenge; 2] = array::from_fn(|_| {
+    //         if contains_global_bus {
+    //             challenger.sample_ext_element()
+    //         } else {
+    //             SC::Challenge::zero()
+    //         }
+    //     });
 
-        let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
-            global_data
-                .into_par_iter()
-                .zip_eq(records.par_iter())
-                .map(|(global_shard_data, record)| {
-                    let local_named_traces = self.generate_traces(record, InteractionScope::Local);
-                    let local_shard_data = self.commit(record, local_named_traces);
-                    self.open(
-                        pk,
-                        global_shard_data,
-                        local_shard_data,
-                        &mut challenger.clone(),
-                        &global_permutation_challenges,
-                    )
-                })
-                .collect::<Result<Vec<_>, _>>()
-        })?;
+    //     let shard_proofs = tracing::info_span!("prove_shards").in_scope(|| {
+    //         global_data
+    //             .into_par_iter()
+    //             .zip_eq(records.par_iter())
+    //             .map(|(global_shard_data, record)| {
+    //                 let local_named_traces = self.generate_traces(record, InteractionScope::Local);
+    //                 let local_shard_data = self.commit(record, local_named_traces);
+    //                 self.open(
+    //                     pk,
+    //                     global_shard_data,
+    //                     local_shard_data,
+    //                     &mut challenger.clone(),
+    //                     &global_permutation_challenges,
+    //                 )
+    //             })
+    //             .collect::<Result<Vec<_>, _>>()
+    //     })?;
 
-        Ok(MachineProof { shard_proofs })
-    }
+    //     Ok(MachineProof { shard_proofs })
+    // }
 }
 
 impl<SC> MachineProvingKey<SC> for StarkProvingKey<SC>

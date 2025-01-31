@@ -154,141 +154,141 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         }
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
-        let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS),
-            CurveType::Secp256r1 => input.get_precompile_events(SyscallCode::SECP256R1_DECOMPRESS),
-            CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS),
-            _ => panic!("Unsupported curve"),
-        };
+    // fn generate_trace(
+    //     &self,
+    //     input: &ExecutionRecord,
+    //     output: &mut ExecutionRecord,
+    // ) -> RowMajorMatrix<F> {
+    //     let events = match E::CURVE_TYPE {
+    //         CurveType::Secp256k1 => input.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS),
+    //         CurveType::Secp256r1 => input.get_precompile_events(SyscallCode::SECP256R1_DECOMPRESS),
+    //         CurveType::Bls12381 => input.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS),
+    //         _ => panic!("Unsupported curve"),
+    //     };
 
-        let mut rows = Vec::new();
-        let weierstrass_width = num_weierstrass_decompress_cols::<E::BaseField>();
-        let width = BaseAir::<F>::width(self);
+    //     let mut rows = Vec::new();
+    //     let weierstrass_width = num_weierstrass_decompress_cols::<E::BaseField>();
+    //     let width = BaseAir::<F>::width(self);
 
-        let mut new_byte_lookup_events = Vec::new();
+    //     let mut new_byte_lookup_events = Vec::new();
 
-        let modulus = E::BaseField::modulus();
+    //     let modulus = E::BaseField::modulus();
 
-        for (_, event) in events {
-            let event = match (E::CURVE_TYPE, event) {
-                (CurveType::Secp256k1, PrecompileEvent::Secp256k1Decompress(event)) => event,
-                (CurveType::Secp256r1, PrecompileEvent::Secp256r1Decompress(event)) => event,
-                (CurveType::Bls12381, PrecompileEvent::Bls12381Decompress(event)) => event,
-                _ => panic!("Unsupported curve"),
-            };
+    //     for (_, event) in events {
+    //         let event = match (E::CURVE_TYPE, event) {
+    //             (CurveType::Secp256k1, PrecompileEvent::Secp256k1Decompress(event)) => event,
+    //             (CurveType::Secp256r1, PrecompileEvent::Secp256r1Decompress(event)) => event,
+    //             (CurveType::Bls12381, PrecompileEvent::Bls12381Decompress(event)) => event,
+    //             _ => panic!("Unsupported curve"),
+    //         };
 
-            let mut row = zeroed_f_vec(width);
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                row[0..weierstrass_width].borrow_mut();
+    //         let mut row = zeroed_f_vec(width);
+    //         let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
+    //             row[0..weierstrass_width].borrow_mut();
 
-            cols.is_real = F::from_bool(true);
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.ptr = F::from_canonical_u32(event.ptr);
-            cols.sign_bit = F::from_bool(event.sign_bit);
+    //         cols.is_real = F::from_bool(true);
+    //         cols.shard = F::from_canonical_u32(event.shard);
+    //         cols.clk = F::from_canonical_u32(event.clk);
+    //         cols.ptr = F::from_canonical_u32(event.ptr);
+    //         cols.sign_bit = F::from_bool(event.sign_bit);
 
-            let x = BigUint::from_bytes_le(&event.x_bytes);
-            Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);
+    //         let x = BigUint::from_bytes_le(&event.x_bytes);
+    //         Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);
 
-            for i in 0..cols.x_access.len() {
-                cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
-            }
-            for i in 0..cols.y_access.len() {
-                cols.y_access[i]
-                    .populate_write(event.y_memory_records[i], &mut new_byte_lookup_events);
-            }
+    //         for i in 0..cols.x_access.len() {
+    //             cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+    //         }
+    //         for i in 0..cols.y_access.len() {
+    //             cols.y_access[i]
+    //                 .populate_write(event.y_memory_records[i], &mut new_byte_lookup_events);
+    //         }
 
-            if matches!(self.sign_rule, SignChoiceRule::Lexicographic) {
-                let lsb = cols.y.lsb;
-                let choice_cols: &mut LexicographicChoiceCols<F, E::BaseField> =
-                    row[weierstrass_width..width].borrow_mut();
+    //         if matches!(self.sign_rule, SignChoiceRule::Lexicographic) {
+    //             let lsb = cols.y.lsb;
+    //             let choice_cols: &mut LexicographicChoiceCols<F, E::BaseField> =
+    //                 row[weierstrass_width..width].borrow_mut();
 
-                let decompressed_y = BigUint::from_bytes_le(&event.decompressed_y_bytes);
-                let neg_y = &modulus - &decompressed_y;
+    //             let decompressed_y = BigUint::from_bytes_le(&event.decompressed_y_bytes);
+    //             let neg_y = &modulus - &decompressed_y;
 
-                let is_y_eq_sqrt_y_result =
-                    F::from_canonical_u8(event.decompressed_y_bytes[0] % 2) == lsb;
-                choice_cols.is_y_eq_sqrt_y_result = F::from_bool(is_y_eq_sqrt_y_result);
+    //             let is_y_eq_sqrt_y_result =
+    //                 F::from_canonical_u8(event.decompressed_y_bytes[0] % 2) == lsb;
+    //             choice_cols.is_y_eq_sqrt_y_result = F::from_bool(is_y_eq_sqrt_y_result);
 
-                if is_y_eq_sqrt_y_result {
-                    choice_cols.neg_y_range_check.populate(
-                        &mut new_byte_lookup_events,
-                        event.shard,
-                        &neg_y,
-                        &modulus,
-                    );
-                } else {
-                    choice_cols.neg_y_range_check.populate(
-                        &mut new_byte_lookup_events,
-                        event.shard,
-                        &decompressed_y,
-                        &modulus,
-                    );
-                }
-                if event.sign_bit {
-                    assert!(neg_y < decompressed_y);
-                    choice_cols.when_sqrt_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
-                    choice_cols.when_neg_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
-                    choice_cols.comparison_lt_cols.populate(
-                        &mut new_byte_lookup_events,
-                        event.shard,
-                        &neg_y,
-                        &decompressed_y,
-                    );
-                } else {
-                    assert!(neg_y > decompressed_y);
-                    choice_cols.when_sqrt_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
-                    choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
-                    choice_cols.comparison_lt_cols.populate(
-                        &mut new_byte_lookup_events,
-                        event.shard,
-                        &decompressed_y,
-                        &neg_y,
-                    );
-                }
-            }
+    //             if is_y_eq_sqrt_y_result {
+    //                 choice_cols.neg_y_range_check.populate(
+    //                     &mut new_byte_lookup_events,
+    //                     event.shard,
+    //                     &neg_y,
+    //                     &modulus,
+    //                 );
+    //             } else {
+    //                 choice_cols.neg_y_range_check.populate(
+    //                     &mut new_byte_lookup_events,
+    //                     event.shard,
+    //                     &decompressed_y,
+    //                     &modulus,
+    //                 );
+    //             }
+    //             if event.sign_bit {
+    //                 assert!(neg_y < decompressed_y);
+    //                 choice_cols.when_sqrt_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
+    //                 choice_cols.when_neg_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
+    //                 choice_cols.comparison_lt_cols.populate(
+    //                     &mut new_byte_lookup_events,
+    //                     event.shard,
+    //                     &neg_y,
+    //                     &decompressed_y,
+    //                 );
+    //             } else {
+    //                 assert!(neg_y > decompressed_y);
+    //                 choice_cols.when_sqrt_y_res_is_lt = F::from_bool(is_y_eq_sqrt_y_result);
+    //                 choice_cols.when_neg_y_res_is_lt = F::from_bool(!is_y_eq_sqrt_y_result);
+    //                 choice_cols.comparison_lt_cols.populate(
+    //                     &mut new_byte_lookup_events,
+    //                     event.shard,
+    //                     &decompressed_y,
+    //                     &neg_y,
+    //                 );
+    //             }
+    //         }
 
-            rows.push(row);
-        }
-        output.add_byte_lookup_events(new_byte_lookup_events);
+    //         rows.push(row);
+    //     }
+    //     output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows_fixed(
-            &mut rows,
-            || {
-                let mut row = zeroed_f_vec(width);
-                let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                    row.as_mut_slice()[0..weierstrass_width].borrow_mut();
+    //     pad_rows_fixed(
+    //         &mut rows,
+    //         || {
+    //             let mut row = zeroed_f_vec(width);
+    //             let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
+    //                 row.as_mut_slice()[0..weierstrass_width].borrow_mut();
 
-                // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
-                let dummy_value = E::generator().0;
-                let dummy_bytes = dummy_value.to_bytes_le();
-                let words = bytes_to_words_le_vec(&dummy_bytes);
-                for i in 0..cols.x_access.len() {
-                    cols.x_access[i].access.value = words[i].into();
-                }
+    //             // take X of the generator as a dummy value to make sure Y^2 = X^3 + b holds
+    //             let dummy_value = E::generator().0;
+    //             let dummy_bytes = dummy_value.to_bytes_le();
+    //             let words = bytes_to_words_le_vec(&dummy_bytes);
+    //             for i in 0..cols.x_access.len() {
+    //                 cols.x_access[i].access.value = words[i].into();
+    //             }
 
-                Self::populate_field_ops(&mut vec![], 0, cols, dummy_value);
-                row
-            },
-            input.fixed_log2_rows::<F, _>(self),
-        );
+    //             Self::populate_field_ops(&mut vec![], 0, cols, dummy_value);
+    //             row
+    //         },
+    //         input.fixed_log2_rows::<F, _>(self),
+    //     );
 
-        let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width);
+    //     let mut trace = RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), width);
 
-        // Write the nonces to the trace.
-        for i in 0..trace.height() {
-            let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
-                trace.values[i * width..i * width + weierstrass_width].borrow_mut();
-            cols.nonce = F::from_canonical_usize(i);
-        }
+    //     // Write the nonces to the trace.
+    //     for i in 0..trace.height() {
+    //         let cols: &mut WeierstrassDecompressCols<F, E::BaseField> =
+    //             trace.values[i * width..i * width + weierstrass_width].borrow_mut();
+    //         cols.nonce = F::from_canonical_usize(i);
+    //     }
 
-        trace
-    }
+    //     trace
+    // }
 
     fn included(&self, shard: &Self::Record) -> bool {
         if let Some(shape) = shard.shape.as_ref() {

@@ -13,9 +13,11 @@ use tracing::instrument;
 use super::{debug_constraints, Dom};
 use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
-    lookup::{debug_interactions_with_all_chips, InteractionKind},
+    // lookup::{debug_interactions_with_all_chips, InteractionKind},
     record::MachineRecord,
-    DebugConstraintBuilder, ShardProof, VerifierConstraintFolder,
+    DebugConstraintBuilder,
+    ShardProof,
+    VerifierConstraintFolder,
 };
 
 use super::{
@@ -252,36 +254,36 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     }
 
     /// Generates the dependencies of the given records.
-    #[allow(clippy::needless_for_each)]
-    pub fn generate_dependencies(
-        &self,
-        records: &mut [A::Record],
-        opts: &<A::Record as MachineRecord>::Config,
-        chips_filter: Option<&[String]>,
-    ) {
-        let chips = self
-            .chips
-            .iter()
-            .filter(|chip| {
-                if let Some(chips_filter) = chips_filter {
-                    chips_filter.contains(&chip.name())
-                } else {
-                    true
-                }
-            })
-            .collect::<Vec<_>>();
+    // #[allow(clippy::needless_for_each)]
+    // pub fn generate_dependencies(
+    //     &self,
+    //     records: &mut [A::Record],
+    //     opts: &<A::Record as MachineRecord>::Config,
+    //     chips_filter: Option<&[String]>,
+    // ) {
+    //     let chips = self
+    //         .chips
+    //         .iter()
+    //         .filter(|chip| {
+    //             if let Some(chips_filter) = chips_filter {
+    //                 chips_filter.contains(&chip.name())
+    //             } else {
+    //                 true
+    //             }
+    //         })
+    //         .collect::<Vec<_>>();
 
-        records.iter_mut().for_each(|record| {
-            chips.iter().for_each(|chip| {
-                tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {
-                    let mut output = A::Record::default();
-                    chip.generate_dependencies(record, &mut output);
-                    record.append(&mut output);
-                });
-            });
-            tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
-        });
-    }
+    //     records.iter_mut().for_each(|record| {
+    //         chips.iter().for_each(|chip| {
+    //             tracing::debug_span!("chip dependencies", chip = chip.name()).in_scope(|| {
+    //                 let mut output = A::Record::default();
+    //                 chip.generate_dependencies(record, &mut output);
+    //                 record.append(&mut output);
+    //             });
+    //         });
+    //         tracing::debug_span!("register nonces").in_scope(|| record.register_nonces(opts));
+    //     });
+    // }
 
     /// Returns the config of the machine.
     pub const fn config(&self) -> &SC {
@@ -365,138 +367,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
             Ok(())
         })
-    }
-
-    /// Debugs the constraints of the given records.
-    #[instrument("debug constraints", level = "debug", skip_all)]
-    pub fn debug_constraints(
-        &self,
-        pk: &StarkProvingKey<SC>,
-        records: Vec<A::Record>,
-        challenger: &mut SC::Challenger,
-    ) where
-        SC::Val: PrimeField32,
-        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
-        tracing::debug!("checking constraints for each shard");
-
-        // Obtain the challenges used for the global permutation argument.
-        let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
-        for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
-        }
-
-        // Obtain the challenges used for the local permutation argument.
-        for _ in 0..2 {
-            permutation_challenges.push(challenger.sample_ext_element());
-        }
-
-        let mut global_cumulative_sum = SC::Challenge::zero();
-        for shard in records.iter() {
-            // Filter the chips based on what is used.
-            let chips = self.shard_chips(shard).collect::<Vec<_>>();
-
-            // Generate the main trace for each chip.
-            let pre_traces = chips
-                .iter()
-                .map(|chip| pk.chip_ordering.get(&chip.name()).map(|index| &pk.traces[*index]))
-                .collect::<Vec<_>>();
-            let mut traces = chips
-                .par_iter()
-                .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
-                .zip(pre_traces)
-                .collect::<Vec<_>>();
-
-            // Generate the permutation traces.
-            let mut permutation_traces = Vec::with_capacity(chips.len());
-            let mut cumulative_sums = Vec::with_capacity(chips.len());
-            tracing::debug_span!("generate permutation traces").in_scope(|| {
-                chips
-                    .par_iter()
-                    .zip(traces.par_iter_mut())
-                    .map(|(chip, (main_trace, pre_trace))| {
-                        let (trace, global_sum, local_sum) = chip.generate_permutation_trace(
-                            *pre_trace,
-                            main_trace,
-                            &permutation_challenges,
-                        );
-                        (trace, [global_sum, local_sum])
-                    })
-                    .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
-            });
-
-            global_cumulative_sum +=
-                cumulative_sums.iter().map(|sum| sum[0]).sum::<SC::Challenge>();
-
-            let local_cumulative_sum =
-                cumulative_sums.iter().map(|sum| sum[1]).sum::<SC::Challenge>();
-            if !local_cumulative_sum.is_zero() {
-                tracing::warn!("Local cumulative sum is not zero");
-                tracing::debug_span!("debug local interactions").in_scope(|| {
-                    debug_interactions_with_all_chips::<SC, A>(
-                        self,
-                        pk,
-                        &[shard.clone()],
-                        InteractionKind::all_kinds(),
-                        InteractionScope::Local,
-                    )
-                });
-                panic!("Local cumulative sum is not zero");
-            }
-
-            // Compute some statistics.
-            for i in 0..chips.len() {
-                let trace_width = traces[i].0.width();
-                let pre_width = traces[i].1.map_or(0, p3_matrix::Matrix::width);
-                let permutation_width = permutation_traces[i].width()
-                    * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
-                let total_width = trace_width + pre_width + permutation_width;
-                tracing::debug!(
-                    "{:<11} | Main Cols = {:<5} | Pre Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
-                    chips[i].name(),
-                    trace_width,
-                    pre_width,
-                    permutation_width,
-                    traces[i].0.height(),
-                    total_width * traces[i].0.height(),
-                );
-            }
-
-            if env::var("SKIP_CONSTRAINTS").is_err() {
-                tracing::info_span!("debug constraints").in_scope(|| {
-                    for i in 0..chips.len() {
-                        let preprocessed_trace =
-                            pk.chip_ordering.get(&chips[i].name()).map(|index| &pk.traces[*index]);
-                        debug_constraints::<SC, A>(
-                            chips[i],
-                            preprocessed_trace,
-                            &traces[i].0,
-                            &permutation_traces[i],
-                            &permutation_challenges,
-                            &shard.public_values(),
-                            &cumulative_sums[i],
-                        );
-                    }
-                });
-            }
-        }
-
-        tracing::info!("Constraints verified successfully");
-
-        // If the global cumulative sum is not zero, debug the interactions.
-        if !global_cumulative_sum.is_zero() {
-            tracing::warn!("Global cumulative sum is not zero");
-            tracing::debug_span!("debug global interactions").in_scope(|| {
-                debug_interactions_with_all_chips::<SC, A>(
-                    self,
-                    pk,
-                    &records,
-                    InteractionKind::all_kinds(),
-                    InteractionScope::Global,
-                )
-            });
-            panic!("Global cumulative sum is not zero");
-        }
     }
 }
 
