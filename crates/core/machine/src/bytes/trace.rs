@@ -15,21 +15,12 @@ use super::{
 pub const NUM_ROWS: usize = 1 << 16;
 
 impl<F: Field> MachineAir<F> for ByteChip<F> {
-    type Record = ExecutionRecord;
-
-    type Program = Program;
-
     fn name(&self) -> String {
         "Byte".to_string()
     }
 
     fn preprocessed_width(&self) -> usize {
         NUM_BYTE_PREPROCESSED_COLS
-    }
-
-    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let trace = Self::trace();
-        Some(trace)
     }
 
     // fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
@@ -60,8 +51,4 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
     //     trace
     // }
-
-    fn included(&self, _shard: &Self::Record) -> bool {
-        true
-    }
 }

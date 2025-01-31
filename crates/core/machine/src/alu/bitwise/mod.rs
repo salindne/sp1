@@ -10,8 +10,10 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{IntoParallelRefIterator, ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    // events::{AluEvent, ByteLookupEvent, ByteRecord},
+    ByteOpcode,
+    Opcode,
+    Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -58,9 +60,9 @@ pub struct BitwiseCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for BitwiseChip {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "Bitwise".to_string()
@@ -113,49 +115,49 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
     //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     // }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.bitwise_events.is_empty()
-        }
-    }
+    // fn included(&self, shard: &Self::Record) -> bool {
+    //     if let Some(shape) = shard.shape.as_ref() {
+    //         shape.included::<F, _>(self)
+    //     } else {
+    //         !shard.bitwise_events.is_empty()
+    //     }
+    // }
 }
 
-impl BitwiseChip {
-    /// Create a row from an event.
-    fn event_to_row<F: PrimeField>(
-        &self,
-        event: &AluEvent,
-        cols: &mut BitwiseCols<F>,
-        blu: &mut impl ByteRecord,
-    ) {
-        let a = event.a.to_le_bytes();
-        let b = event.b.to_le_bytes();
-        let c = event.c.to_le_bytes();
+// impl BitwiseChip {
+//     /// Create a row from an event.
+//     fn event_to_row<F: PrimeField>(
+//         &self,
+//         event: &AluEvent,
+//         cols: &mut BitwiseCols<F>,
+//         blu: &mut impl ByteRecord,
+//     ) {
+//         let a = event.a.to_le_bytes();
+//         let b = event.b.to_le_bytes();
+//         let c = event.c.to_le_bytes();
 
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.a = Word::from(event.a);
-        cols.b = Word::from(event.b);
-        cols.c = Word::from(event.c);
+//         cols.shard = F::from_canonical_u32(event.shard);
+//         cols.a = Word::from(event.a);
+//         cols.b = Word::from(event.b);
+//         cols.c = Word::from(event.c);
 
-        cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
-        cols.is_or = F::from_bool(event.opcode == Opcode::OR);
-        cols.is_and = F::from_bool(event.opcode == Opcode::AND);
+//         cols.is_xor = F::from_bool(event.opcode == Opcode::XOR);
+//         cols.is_or = F::from_bool(event.opcode == Opcode::OR);
+//         cols.is_and = F::from_bool(event.opcode == Opcode::AND);
 
-        for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
-            let byte_event = ByteLookupEvent {
-                shard: event.shard,
-                opcode: ByteOpcode::from(event.opcode),
-                a1: b_a as u16,
-                a2: 0,
-                b: b_b,
-                c: b_c,
-            };
-            blu.add_byte_lookup_event(byte_event);
-        }
-    }
-}
+//         for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
+//             let byte_event = ByteLookupEvent {
+//                 shard: event.shard,
+//                 opcode: ByteOpcode::from(event.opcode),
+//                 a1: b_a as u16,
+//                 a2: 0,
+//                 b: b_b,
+//                 c: b_c,
+//             };
+//             blu.add_byte_lookup_event(byte_event);
+//         }
+//     }
+// }
 
 impl<F> BaseAir<F> for BitwiseChip {
     fn width(&self) -> usize {

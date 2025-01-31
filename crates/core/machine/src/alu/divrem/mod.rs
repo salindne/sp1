@@ -69,8 +69,12 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core_executor::{
-    events::{ByteLookupEvent, ByteRecord},
-    get_msb, get_quotient_and_remainder, is_signed_operation, ByteOpcode, ExecutionRecord, Opcode,
+    // events::{ByteLookupEvent, ByteRecord},
+    get_msb,
+    get_quotient_and_remainder,
+    is_signed_operation,
+    ByteOpcode,
+    Opcode,
     Program,
 };
 use sp1_derive::AlignedBorrow;
@@ -210,9 +214,9 @@ pub struct DivRemCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "DivRem".to_string()
@@ -245,13 +249,13 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
     //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_DIVREM_COLS)
     // }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.divrem_events.is_empty()
-        }
-    }
+    // fn included(&self, shard: &Self::Record) -> bool {
+    //     if let Some(shape) = shard.shape.as_ref() {
+    //         shape.included::<F, _>(self)
+    //     } else {
+    //         !shard.divrem_events.is_empty()
+    //     }
+    // }
 }
 
 impl<F> BaseAir<F> for DivRemChip {

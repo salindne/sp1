@@ -43,9 +43,9 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
 }
 
 impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "MemoryGlobal".to_string()
@@ -87,16 +87,16 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_GLOBAL_MEMORY_COLS)
     // }
 
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            match self.kind {
-                MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
-                MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
-            }
-        }
-    }
+    // fn included(&self, shard: &Self::Record) -> bool {
+    //     if let Some(shape) = shard.shape.as_ref() {
+    //         shape.included::<F, _>(self)
+    //     } else {
+    //         match self.kind {
+    //             MemoryChipType::Initialize => !shard.global_memory_initialize_events.is_empty(),
+    //             MemoryChipType::Finalize => !shard.global_memory_finalize_events.is_empty(),
+    //         }
+    //     }
+    // }
 
     fn commit_scope(&self) -> InteractionScope {
         InteractionScope::Global

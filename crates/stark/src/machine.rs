@@ -10,12 +10,12 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::{array, cmp::Reverse, env, fmt::Debug, time::Instant};
 use tracing::instrument;
 
-use super::{debug_constraints, Dom};
+use super::Dom;
 use crate::{
     air::{InteractionScope, MachineAir, MachineProgram},
     // lookup::{debug_interactions_with_all_chips, InteractionKind},
     record::MachineRecord,
-    DebugConstraintBuilder,
+    // DebugConstraintBuilder,
     ShardProof,
     VerifierConstraintFolder,
 };
@@ -175,83 +175,83 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup machine", level = "debug", skip_all)]
-    #[allow(clippy::map_unwrap_or)]
-    #[allow(clippy::redundant_closure_for_method_calls)]
-    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
-        let parent_span = tracing::debug_span!("generate preprocessed traces");
-        let mut named_preprocessed_traces = parent_span.in_scope(|| {
-            self.chips()
-                .par_iter()
-                .filter_map(|chip| {
-                    let chip_name = chip.name();
-                    let begin = Instant::now();
-                    let prep_trace = chip.generate_preprocessed_trace(program);
-                    tracing::debug!(
-                        parent: &parent_span,
-                        "generated preprocessed trace for chip {} in {:?}",
-                        chip_name,
-                        begin.elapsed()
-                    );
-                    // Assert that the chip width data is correct.
-                    let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
-                    assert_eq!(
-                        expected_width,
-                        chip.preprocessed_width(),
-                        "Incorrect number of preprocessed columns for chip {chip_name}"
-                    );
-                    prep_trace.map(move |t| (chip_name, chip.local_only(), t))
-                })
-                .collect::<Vec<_>>()
-        });
+    // #[instrument("setup machine", level = "debug", skip_all)]
+    // #[allow(clippy::map_unwrap_or)]
+    // #[allow(clippy::redundant_closure_for_method_calls)]
+    // pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
+    //     let parent_span = tracing::debug_span!("generate preprocessed traces");
+    //     let mut named_preprocessed_traces = parent_span.in_scope(|| {
+    //         self.chips()
+    //             .par_iter()
+    //             .filter_map(|chip| {
+    //                 let chip_name = chip.name();
+    //                 let begin = Instant::now();
+    //                 let prep_trace = chip.generate_preprocessed_trace(program);
+    //                 tracing::debug!(
+    //                     parent: &parent_span,
+    //                     "generated preprocessed trace for chip {} in {:?}",
+    //                     chip_name,
+    //                     begin.elapsed()
+    //                 );
+    //                 // Assert that the chip width data is correct.
+    //                 let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+    //                 assert_eq!(
+    //                     expected_width,
+    //                     chip.preprocessed_width(),
+    //                     "Incorrect number of preprocessed columns for chip {chip_name}"
+    //                 );
+    //                 prep_trace.map(move |t| (chip_name, chip.local_only(), t))
+    //             })
+    //             .collect::<Vec<_>>()
+    //     });
 
-        // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_preprocessed_traces
-            .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
+    //     // Order the chips and traces by trace size (biggest first), and get the ordering map.
+    //     named_preprocessed_traces
+    //         .sort_by_key(|(name, _, trace)| (Reverse(trace.height()), name.clone()));
 
-        let pcs = self.config.pcs();
-        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
-            .iter()
-            .map(|(name, _, trace)| {
-                let domain = pcs.natural_domain_for_degree(trace.height());
-                ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
-            })
-            .unzip();
+    //     let pcs = self.config.pcs();
+    //     let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
+    //         .iter()
+    //         .map(|(name, _, trace)| {
+    //             let domain = pcs.natural_domain_for_degree(trace.height());
+    //             ((name.to_owned(), domain, trace.dimensions()), (domain, trace.to_owned()))
+    //         })
+    //         .unzip();
 
-        // Commit to the batch of traces.
-        let (commit, data) = tracing::debug_span!("commit to preprocessed traces")
-            .in_scope(|| pcs.commit(domains_and_traces));
+    //     // Commit to the batch of traces.
+    //     let (commit, data) = tracing::debug_span!("commit to preprocessed traces")
+    //         .in_scope(|| pcs.commit(domains_and_traces));
 
-        // Get the chip ordering.
-        let chip_ordering = named_preprocessed_traces
-            .iter()
-            .enumerate()
-            .map(|(i, (name, _, _))| (name.to_owned(), i))
-            .collect::<HashMap<_, _>>();
+    //     // Get the chip ordering.
+    //     let chip_ordering = named_preprocessed_traces
+    //         .iter()
+    //         .enumerate()
+    //         .map(|(i, (name, _, _))| (name.to_owned(), i))
+    //         .collect::<HashMap<_, _>>();
 
-        let local_only = named_preprocessed_traces
-            .iter()
-            .map(|(_, local_only, _)| local_only.to_owned())
-            .collect::<Vec<_>>();
+    //     let local_only = named_preprocessed_traces
+    //         .iter()
+    //         .map(|(_, local_only, _)| local_only.to_owned())
+    //         .collect::<Vec<_>>();
 
-        // Get the preprocessed traces
-        let traces =
-            named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
+    //     // Get the preprocessed traces
+    //     let traces =
+    //         named_preprocessed_traces.into_iter().map(|(_, _, trace)| trace).collect::<Vec<_>>();
 
-        let pc_start = program.pc_start();
+    //     let pc_start = program.pc_start();
 
-        (
-            StarkProvingKey {
-                commit: commit.clone(),
-                pc_start,
-                traces,
-                data,
-                chip_ordering: chip_ordering.clone(),
-                local_only,
-            },
-            StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
-        )
-    }
+    //     (
+    //         StarkProvingKey {
+    //             commit: commit.clone(),
+    //             pc_start,
+    //             traces,
+    //             data,
+    //             chip_ordering: chip_ordering.clone(),
+    //             local_only,
+    //         },
+    //         StarkVerifyingKey { commit, pc_start, chip_information, chip_ordering },
+    //     )
+    // }
 
     /// Generates the dependencies of the given records.
     // #[allow(clippy::needless_for_each)]

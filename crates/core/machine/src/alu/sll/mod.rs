@@ -42,8 +42,9 @@ use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ExecutionRecord, Opcode, Program,
+    // events::{AluEvent, ByteLookupEvent, ByteRecord},
+    Opcode,
+    Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
@@ -102,9 +103,9 @@ pub struct ShiftLeftCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for ShiftLeft {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "Sll".to_string()
@@ -156,14 +157,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
     //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.shift_left_events.is_empty()
-        }
-    }
 }
 
 impl ShiftLeft {

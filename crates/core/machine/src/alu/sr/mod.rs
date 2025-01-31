@@ -53,10 +53,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
-use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
-};
+use sp1_core_executor::{ByteOpcode, Opcode, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::consts::WORD_SIZE;
 use sp1_stark::{air::MachineAir, Word};
@@ -135,9 +132,9 @@ pub struct ShiftRightCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "ShiftRight".to_string()
@@ -197,122 +194,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
 
     //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.shift_right_events.is_empty()
-        }
-    }
-}
-
-impl ShiftRightChip {
-    /// Create a row from an event.
-    fn event_to_row<F: PrimeField>(
-        &self,
-        event: &AluEvent,
-        cols: &mut ShiftRightCols<F>,
-        blu: &mut impl ByteRecord,
-    ) {
-        // Initialize cols with basic operands and flags derived from the current event.
-        {
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.a = Word::from(event.a);
-            cols.b = Word::from(event.b);
-            cols.c = Word::from(event.c);
-
-            cols.b_msb = F::from_canonical_u32((event.b >> 31) & 1);
-
-            cols.is_srl = F::from_bool(event.opcode == Opcode::SRL);
-            cols.is_sra = F::from_bool(event.opcode == Opcode::SRA);
-
-            cols.is_real = F::one();
-
-            for i in 0..BYTE_SIZE {
-                cols.c_least_sig_byte[i] = F::from_canonical_u32((event.c >> i) & 1);
-            }
-
-            // Insert the MSB lookup event.
-            let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
-            blu.add_byte_lookup_events(vec![ByteLookupEvent {
-                shard: event.shard,
-                opcode: ByteOpcode::MSB,
-                a1: ((most_significant_byte >> 7) & 1) as u16,
-                a2: 0,
-                b: most_significant_byte,
-                c: 0,
-            }]);
-        }
-
-        let num_bytes_to_shift = nb_bytes_to_shift(event.c);
-        let num_bits_to_shift = nb_bits_to_shift(event.c);
-
-        // Byte shifting.
-        let mut byte_shift_result = [0u8; LONG_WORD_SIZE];
-        {
-            for i in 0..WORD_SIZE {
-                cols.shift_by_n_bytes[i] = F::from_bool(num_bytes_to_shift == i);
-            }
-            let sign_extended_b = {
-                if event.opcode == Opcode::SRA {
-                    // Sign extension is necessary only for arithmetic right shift.
-                    ((event.b as i32) as i64).to_le_bytes()
-                } else {
-                    (event.b as u64).to_le_bytes()
-                }
-            };
-
-            for i in 0..LONG_WORD_SIZE {
-                if i + num_bytes_to_shift < LONG_WORD_SIZE {
-                    byte_shift_result[i] = sign_extended_b[i + num_bytes_to_shift];
-                }
-            }
-            cols.byte_shift_result = byte_shift_result.map(F::from_canonical_u8);
-        }
-
-        // Bit shifting.
-        {
-            for i in 0..BYTE_SIZE {
-                cols.shift_by_n_bits[i] = F::from_bool(num_bits_to_shift == i);
-            }
-            let carry_multiplier = 1 << (8 - num_bits_to_shift);
-            let mut last_carry = 0u32;
-            let mut bit_shift_result = [0u8; LONG_WORD_SIZE];
-            let mut shr_carry_output_carry = [0u8; LONG_WORD_SIZE];
-            let mut shr_carry_output_shifted_byte = [0u8; LONG_WORD_SIZE];
-            for i in (0..LONG_WORD_SIZE).rev() {
-                let (shift, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
-
-                let byte_event = ByteLookupEvent {
-                    shard: event.shard,
-                    opcode: ByteOpcode::ShrCarry,
-                    a1: shift as u16,
-                    a2: carry,
-                    b: byte_shift_result[i],
-                    c: num_bits_to_shift as u8,
-                };
-                blu.add_byte_lookup_event(byte_event);
-
-                shr_carry_output_carry[i] = carry;
-                shr_carry_output_shifted_byte[i] = shift;
-                bit_shift_result[i] = ((shift as u32 + last_carry * carry_multiplier) & 0xff) as u8;
-                last_carry = carry as u32;
-            }
-            cols.bit_shift_result = bit_shift_result.map(F::from_canonical_u8);
-            cols.shr_carry_output_carry = shr_carry_output_carry.map(F::from_canonical_u8);
-            cols.shr_carry_output_shifted_byte =
-                shr_carry_output_shifted_byte.map(F::from_canonical_u8);
-            for i in 0..WORD_SIZE {
-                debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
-            }
-            // Range checks.
-            blu.add_u8_range_checks(event.shard, &byte_shift_result);
-            blu.add_u8_range_checks(event.shard, &bit_shift_result);
-            blu.add_u8_range_checks(event.shard, &shr_carry_output_carry);
-            blu.add_u8_range_checks(event.shard, &shr_carry_output_shifted_byte);
-        }
-    }
 }
 
 impl<F> BaseAir<F> for ShiftRightChip {

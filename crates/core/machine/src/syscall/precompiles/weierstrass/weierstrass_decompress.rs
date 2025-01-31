@@ -142,9 +142,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassDecompressChip<E>
 {
-    type Record = ExecutionRecord;
-    type Program = Program;
-
     fn name(&self) -> String {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1Decompress".to_string(),
@@ -288,26 +285,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     //     }
 
     //     trace
-    // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            match E::CURVE_TYPE {
-                CurveType::Secp256k1 => {
-                    !shard.get_precompile_events(SyscallCode::SECP256K1_DECOMPRESS).is_empty()
-                }
-                CurveType::Secp256r1 => {
-                    !shard.get_precompile_events(SyscallCode::SECP256R1_DECOMPRESS).is_empty()
-                }
-                CurveType::Bls12381 => {
-                    !shard.get_precompile_events(SyscallCode::BLS12381_DECOMPRESS).is_empty()
-                }
-                _ => panic!("Unsupported curve"),
-            }
-        }
-    }
+    //
 }
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassDecompressChip<E> {

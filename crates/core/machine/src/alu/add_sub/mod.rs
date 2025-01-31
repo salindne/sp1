@@ -9,10 +9,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator};
-use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ExecutionRecord, Opcode, Program,
-};
+use sp1_core_executor::{Opcode, Program};
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
     air::{MachineAir, SP1AirBuilder},
@@ -64,9 +61,9 @@ pub struct AddSubCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "AddSub".to_string()
@@ -118,37 +115,29 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
 
     //     RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_ADD_SUB_COLS)
     // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.add_events.is_empty()
-        }
-    }
 }
 
-impl AddSubChip {
-    /// Create a row from an event.
-    fn event_to_row<F: PrimeField>(
-        &self,
-        event: &AluEvent,
-        cols: &mut AddSubCols<F>,
-        blu: &mut impl ByteRecord,
-    ) {
-        let is_add = event.opcode == Opcode::ADD;
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.is_add = F::from_bool(is_add);
-        cols.is_sub = F::from_bool(!is_add);
+// impl AddSubChip {
+//     /// Create a row from an event.
+//     fn event_to_row<F: PrimeField>(
+//         &self,
+//         event: &AluEvent,
+//         cols: &mut AddSubCols<F>,
+//         blu: &mut impl ByteRecord,
+//     ) {
+//         let is_add = event.opcode == Opcode::ADD;
+//         cols.shard = F::from_canonical_u32(event.shard);
+//         cols.is_add = F::from_bool(is_add);
+//         cols.is_sub = F::from_bool(!is_add);
 
-        let operand_1 = if is_add { event.b } else { event.a };
-        let operand_2 = event.c;
+//         let operand_1 = if is_add { event.b } else { event.a };
+//         let operand_2 = event.c;
 
-        cols.add_operation.populate(blu, event.shard, operand_1, operand_2);
-        cols.operand_1 = Word::from(operand_1);
-        cols.operand_2 = Word::from(operand_2);
-    }
-}
+//         cols.add_operation.populate(blu, event.shard, operand_1, operand_2);
+//         cols.operand_1 = Word::from(operand_1);
+//         cols.operand_2 = Word::from(operand_2);
+//     }
+// }
 
 impl<F> BaseAir<F> for AddSubChip {
     fn width(&self) -> usize {

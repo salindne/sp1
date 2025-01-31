@@ -182,9 +182,9 @@ where
     F: Field,
     A: MachineAir<F>,
 {
-    type Record = A::Record;
+    // type Record = A::Record;
 
-    type Program = A::Program;
+    // type Program = A::Program;
 
     fn name(&self) -> String {
         self.air.name()
@@ -194,9 +194,9 @@ where
         <A as MachineAir<F>>::preprocessed_width(&self.air)
     }
 
-    fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
-        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
-    }
+    // fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
+    //     <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
+    // }
 
     // fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
     //     self.air.generate_trace(input, output)

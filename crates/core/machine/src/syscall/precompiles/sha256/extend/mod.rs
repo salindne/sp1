@@ -110,9 +110,4 @@ impl ShaExtendChip {
     //         chip.generate_trace(&shard, &mut ExecutionRecord::default());
     //     println!("{:?}", trace.values)
     // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        // Implementation of included method
-        false
-    }
 }

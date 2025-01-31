@@ -41,7 +41,7 @@ mod register;
 mod shape;
 // mod state;
 pub mod subproof;
-// pub mod syscalls;
+pub mod syscalls;
 mod utils;
 
 // pub use context::*;
@@ -57,3 +57,23 @@ pub use register::*;
 pub use shape::*;
 // pub use state::*;
 pub use utils::*;
+
+pub mod events {
+    use serde::{Deserialize, Serialize};
+
+    /// This is an arithmetic operation for emulating modular arithmetic.
+    #[derive(Default, PartialEq, Copy, Clone, Debug, Serialize, Deserialize)]
+    pub enum FieldOperation {
+        /// Addition.
+        #[default]
+        Add,
+        /// Multiplication.
+        Mul,
+        /// Subtraction.
+        Sub,
+        /// Division.
+        Div,
+    }
+}
+
+pub use events::*;

@@ -11,14 +11,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::{ParallelBridge, ParallelIterator, ParallelSlice};
-use sp1_core_executor::{
-    events::{
-        ByteLookupEvent, ByteRecord, EllipticCurveAddEvent, FieldOperation, PrecompileEvent,
-        SyscallEvent,
-    },
-    syscalls::SyscallCode,
-    ExecutionRecord, Program,
-};
+use sp1_core_executor::events::FieldOperation;
 use sp1_curves::{
     params::{FieldParameters, Limbs, NumLimbs, NumWords},
     weierstrass::WeierstrassParameters,
@@ -73,80 +66,11 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     pub const fn new() -> Self {
         Self { _marker: PhantomData }
     }
-
-    #[allow(clippy::too_many_arguments)]
-    fn populate_field_ops<F: PrimeField32>(
-        blu_events: &mut Vec<ByteLookupEvent>,
-        shard: u32,
-        cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
-        p_x: BigUint,
-        p_y: BigUint,
-        q_x: BigUint,
-        q_y: BigUint,
-    ) {
-        // This populates necessary field operations to calculate the addition of two points on a
-        // Weierstrass curve.
-
-        // slope = (q.y - p.y) / (q.x - p.x).
-        let slope = {
-            let slope_numerator =
-                cols.slope_numerator.populate(blu_events, shard, &q_y, &p_y, FieldOperation::Sub);
-
-            let slope_denominator =
-                cols.slope_denominator.populate(blu_events, shard, &q_x, &p_x, FieldOperation::Sub);
-
-            cols.slope.populate(
-                blu_events,
-                shard,
-                &slope_numerator,
-                &slope_denominator,
-                FieldOperation::Div,
-            )
-        };
-
-        // x = slope * slope - (p.x + q.x).
-        let x = {
-            let slope_squared =
-                cols.slope_squared.populate(blu_events, shard, &slope, &slope, FieldOperation::Mul);
-            let p_x_plus_q_x =
-                cols.p_x_plus_q_x.populate(blu_events, shard, &p_x, &q_x, FieldOperation::Add);
-            cols.x3_ins.populate(
-                blu_events,
-                shard,
-                &slope_squared,
-                &p_x_plus_q_x,
-                FieldOperation::Sub,
-            )
-        };
-
-        // y = slope * (p.x - x_3n) - p.y.
-        {
-            let p_x_minus_x =
-                cols.p_x_minus_x.populate(blu_events, shard, &p_x, &x, FieldOperation::Sub);
-            let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate(
-                blu_events,
-                shard,
-                &slope,
-                &p_x_minus_x,
-                FieldOperation::Mul,
-            );
-            cols.y3_ins.populate(
-                blu_events,
-                shard,
-                &slope_times_p_x_minus_x,
-                &p_y,
-                FieldOperation::Sub,
-            );
-        }
-    }
 }
 
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassAddAssignChip<E>
 {
-    type Record = ExecutionRecord;
-    type Program = Program;
-
     fn name(&self) -> String {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
@@ -265,26 +189,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     //     trace
     // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            match E::CURVE_TYPE {
-                CurveType::Secp256k1 => {
-                    !shard.get_precompile_events(SyscallCode::SECP256K1_ADD).is_empty()
-                }
-                CurveType::Secp256r1 => {
-                    !shard.get_precompile_events(SyscallCode::SECP256R1_ADD).is_empty()
-                }
-                CurveType::Bn254 => !shard.get_precompile_events(SyscallCode::BN254_ADD).is_empty(),
-                CurveType::Bls12381 => {
-                    !shard.get_precompile_events(SyscallCode::BLS12381_ADD).is_empty()
-                }
-                _ => panic!("Unsupported curve"),
-            }
-        }
-    }
 }
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
@@ -428,38 +332,38 @@ where
     }
 }
 
-impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
-    pub fn populate_row<F: PrimeField32>(
-        event: &EllipticCurveAddEvent,
-        cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
-        new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
-    ) {
-        // Decode affine points.
-        let p = &event.p;
-        let q = &event.q;
-        let p = AffinePoint::<E>::from_words_le(p);
-        let (p_x, p_y) = (p.x, p.y);
-        let q = AffinePoint::<E>::from_words_le(q);
-        let (q_x, q_y) = (q.x, q.y);
+// impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
+//     pub fn populate_row<F: PrimeField32>(
+//         event: &EllipticCurveAddEvent,
+//         cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
+//         new_byte_lookup_events: &mut Vec<ByteLookupEvent>,
+//     ) {
+//         // Decode affine points.
+//         let p = &event.p;
+//         let q = &event.q;
+//         let p = AffinePoint::<E>::from_words_le(p);
+//         let (p_x, p_y) = (p.x, p.y);
+//         let q = AffinePoint::<E>::from_words_le(q);
+//         let (q_x, q_y) = (q.x, q.y);
 
-        // Populate basic columns.
-        cols.is_real = F::one();
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.clk = F::from_canonical_u32(event.clk);
-        cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-        cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+//         // Populate basic columns.
+//         cols.is_real = F::one();
+//         cols.shard = F::from_canonical_u32(event.shard);
+//         cols.clk = F::from_canonical_u32(event.clk);
+//         cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+//         cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-        Self::populate_field_ops(new_byte_lookup_events, event.shard, cols, p_x, p_y, q_x, q_y);
+//         Self::populate_field_ops(new_byte_lookup_events, event.shard, cols, p_x, p_y, q_x, q_y);
 
-        // Populate the memory access columns.
-        for i in 0..cols.q_access.len() {
-            cols.q_access[i].populate(event.q_memory_records[i], new_byte_lookup_events);
-        }
-        for i in 0..cols.p_access.len() {
-            cols.p_access[i].populate(event.p_memory_records[i], new_byte_lookup_events);
-        }
-    }
-}
+//         // Populate the memory access columns.
+//         for i in 0..cols.q_access.len() {
+//             cols.q_access[i].populate(event.q_memory_records[i], new_byte_lookup_events);
+//         }
+//         for i in 0..cols.p_access.len() {
+//             cols.p_access[i].populate(event.p_memory_records[i], new_byte_lookup_events);
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {

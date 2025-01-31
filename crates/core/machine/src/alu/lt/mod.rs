@@ -10,8 +10,10 @@ use p3_field::{AbstractField, Field, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use sp1_core_executor::{
-    events::{AluEvent, ByteLookupEvent, ByteRecord},
-    ByteOpcode, ExecutionRecord, Opcode, Program,
+    // events::{AluEvent, ByteLookupEvent, ByteRecord},
+    ByteOpcode,
+    Opcode,
+    Program,
 };
 use sp1_derive::AlignedBorrow;
 use sp1_stark::{
@@ -93,9 +95,9 @@ impl LtCols<u32> {
 }
 
 impl<F: PrimeField32> MachineAir<F> for LtChip {
-    type Record = ExecutionRecord;
+    // type Record = ExecutionRecord;
 
-    type Program = Program;
+    // type Program = Program;
 
     fn name(&self) -> String {
         "Lt".to_string()
@@ -147,107 +149,99 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
     //     output.add_sharded_byte_lookup_events(blu_batches.iter().collect_vec());
     // }
-
-    fn included(&self, shard: &Self::Record) -> bool {
-        if let Some(shape) = shard.shape.as_ref() {
-            shape.included::<F, _>(self)
-        } else {
-            !shard.lt_events.is_empty()
-        }
-    }
 }
 
-impl LtChip {
-    /// Create a row from an event.
-    fn event_to_row<F: PrimeField32>(
-        &self,
-        event: &AluEvent,
-        cols: &mut LtCols<F>,
-        blu: &mut impl ByteRecord,
-    ) {
-        let a = event.a.to_le_bytes();
-        let b = event.b.to_le_bytes();
-        let c = event.c.to_le_bytes();
+// impl LtChip {
+//     /// Create a row from an event.
+//     fn event_to_row<F: PrimeField32>(
+//         &self,
+//         event: &AluEvent,
+//         cols: &mut LtCols<F>,
+//         blu: &mut impl ByteRecord,
+//     ) {
+//         let a = event.a.to_le_bytes();
+//         let b = event.b.to_le_bytes();
+//         let c = event.c.to_le_bytes();
 
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.a = Word(a.map(F::from_canonical_u8));
-        cols.b = Word(b.map(F::from_canonical_u8));
-        cols.c = Word(c.map(F::from_canonical_u8));
+//         cols.shard = F::from_canonical_u32(event.shard);
+//         cols.a = Word(a.map(F::from_canonical_u8));
+//         cols.b = Word(b.map(F::from_canonical_u8));
+//         cols.c = Word(c.map(F::from_canonical_u8));
 
-        // If this is SLT, mask the MSB of b & c before computing cols.bits.
-        let masked_b = b[3] & 0x7f;
-        let masked_c = c[3] & 0x7f;
-        cols.b_masked = F::from_canonical_u8(masked_b);
-        cols.c_masked = F::from_canonical_u8(masked_c);
+//         // If this is SLT, mask the MSB of b & c before computing cols.bits.
+//         let masked_b = b[3] & 0x7f;
+//         let masked_c = c[3] & 0x7f;
+//         cols.b_masked = F::from_canonical_u8(masked_b);
+//         cols.c_masked = F::from_canonical_u8(masked_c);
 
-        // Send the masked interaction.
-        blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
-            opcode: ByteOpcode::AND,
-            a1: masked_b as u16,
-            a2: 0,
-            b: b[3],
-            c: 0x7f,
-        });
-        blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
-            opcode: ByteOpcode::AND,
-            a1: masked_c as u16,
-            a2: 0,
-            b: c[3],
-            c: 0x7f,
-        });
+//         // Send the masked interaction.
+//         blu.add_byte_lookup_event(ByteLookupEvent {
+//             shard: event.shard,
+//             opcode: ByteOpcode::AND,
+//             a1: masked_b as u16,
+//             a2: 0,
+//             b: b[3],
+//             c: 0x7f,
+//         });
+//         blu.add_byte_lookup_event(ByteLookupEvent {
+//             shard: event.shard,
+//             opcode: ByteOpcode::AND,
+//             a1: masked_c as u16,
+//             a2: 0,
+//             b: c[3],
+//             c: 0x7f,
+//         });
 
-        let mut b_comp = b;
-        let mut c_comp = c;
-        if event.opcode == Opcode::SLT {
-            b_comp[3] = masked_b;
-            c_comp[3] = masked_c;
-        }
-        cols.sltu = F::from_bool(b_comp < c_comp);
-        cols.is_comp_eq = F::from_bool(b_comp == c_comp);
+//         let mut b_comp = b;
+//         let mut c_comp = c;
+//         if event.opcode == Opcode::SLT {
+//             b_comp[3] = masked_b;
+//             c_comp[3] = masked_c;
+//         }
+//         cols.sltu = F::from_bool(b_comp < c_comp);
+//         cols.is_comp_eq = F::from_bool(b_comp == c_comp);
 
-        // Set the byte equality flags.
-        for (b_byte, c_byte, flag) in
-            izip!(b_comp.iter().rev(), c_comp.iter().rev(), cols.byte_flags.iter_mut().rev())
-        {
-            if c_byte != b_byte {
-                *flag = F::one();
-                cols.sltu = F::from_bool(b_byte < c_byte);
-                let b_byte = F::from_canonical_u8(*b_byte);
-                let c_byte = F::from_canonical_u8(*c_byte);
-                cols.not_eq_inv = (b_byte - c_byte).inverse();
-                cols.comparison_bytes = [b_byte, c_byte];
-                break;
-            }
-        }
+//         // Set the byte equality flags.
+//         for (b_byte, c_byte, flag) in
+//             izip!(b_comp.iter().rev(), c_comp.iter().rev(), cols.byte_flags.iter_mut().rev())
+//         {
+//             if c_byte != b_byte {
+//                 *flag = F::one();
+//                 cols.sltu = F::from_bool(b_byte < c_byte);
+//                 let b_byte = F::from_canonical_u8(*b_byte);
+//                 let c_byte = F::from_canonical_u8(*c_byte);
+//                 cols.not_eq_inv = (b_byte - c_byte).inverse();
+//                 cols.comparison_bytes = [b_byte, c_byte];
+//                 break;
+//             }
+//         }
 
-        cols.msb_b = F::from_canonical_u8((b[3] >> 7) & 1);
-        cols.msb_c = F::from_canonical_u8((c[3] >> 7) & 1);
-        cols.is_sign_eq = if event.opcode == Opcode::SLT {
-            F::from_bool((b[3] >> 7) == (c[3] >> 7))
-        } else {
-            F::one()
-        };
+//         cols.msb_b = F::from_canonical_u8((b[3] >> 7) & 1);
+//         cols.msb_c = F::from_canonical_u8((c[3] >> 7) & 1);
+//         cols.is_sign_eq = if event.opcode == Opcode::SLT {
+//             F::from_bool((b[3] >> 7) == (c[3] >> 7))
+//         } else {
+//             F::one()
+//         };
 
-        cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
-        cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
+//         cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
+//         cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
 
-        cols.bit_b = cols.msb_b * cols.is_slt;
-        cols.bit_c = cols.msb_c * cols.is_slt;
+//         cols.bit_b = cols.msb_b * cols.is_slt;
+//         cols.bit_c = cols.msb_c * cols.is_slt;
 
-        assert_eq!(cols.a[0], cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
+//         assert_eq!(cols.a[0], cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu);
 
-        blu.add_byte_lookup_event(ByteLookupEvent {
-            shard: event.shard,
-            opcode: ByteOpcode::LTU,
-            a1: cols.sltu.as_canonical_u32() as u16,
-            a2: 0,
-            b: cols.comparison_bytes[0].as_canonical_u32() as u8,
-            c: cols.comparison_bytes[1].as_canonical_u32() as u8,
-        });
-    }
-}
+//         blu.add_byte_lookup_event(ByteLookupEvent {
+//             shard: event.shard,
+//             opcode: ByteOpcode::LTU,
+//             a1: cols.sltu.as_canonical_u32() as u16,
+//             a2: 0,
+//             b: cols.comparison_bytes[0].as_canonical_u32() as u8,
+//             c: cols.comparison_bytes[1].as_canonical_u32() as u8,
+//         });
+//     }
+// }
 
 impl<F> BaseAir<F> for LtChip {
     fn width(&self) -> usize {
