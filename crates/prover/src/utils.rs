@@ -10,8 +10,6 @@ use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::{AbstractField, PrimeField32};
 use p3_symmetric::CryptographicHasher;
-use sp1_core_executor::{Executor, Program};
-use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
 // use sp1_recursion_circuit::machine::RootPublicValues;
 // use sp1_recursion_core::{
 //     air::{RecursionPublicValues, NUM_PV_ELMS_TO_HASH},
@@ -100,13 +98,13 @@ impl SP1CoreProofData {
 }
 
 /// Get the number of cycles for a given program.
-pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
-    let program = Program::from(elf).unwrap();
-    let mut runtime = Executor::new(program, SP1CoreOpts::default());
-    runtime.write_vecs(&stdin.buffer);
-    runtime.run_fast().unwrap();
-    runtime.state.global_clk
-}
+// pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
+//     let program = Program::from(elf).unwrap();
+//     let mut runtime = Executor::new(program, SP1CoreOpts::default());
+//     runtime.write_vecs(&stdin.buffer);
+//     runtime.run_fast().unwrap();
+//     runtime.state.global_clk
+// }
 
 /// Load an ELF file from a given path.
 pub fn load_elf(path: &str) -> Result<Vec<u8>, std::io::Error> {

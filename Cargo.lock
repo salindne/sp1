@@ -2330,7 +2330,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "sp1-core-executor",
  "sp1-core-machine",
  "sp1-primitives",
  "sp1-stark",
