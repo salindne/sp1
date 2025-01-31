@@ -1916,7 +1916,6 @@ dependencies = [
 name = "sp1-zkvm"
 version = "3.4.0"
 dependencies = [
- "cfg-if",
  "getrandom",
  "lazy_static",
  "libm",

@@ -31,7 +31,7 @@ amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = fals
   "bls381",
 ] }
 cfg-if = "1.0.0"
-generic-array = { version = "1.1.0", features = ["alloc", "serde"] }
+generic-array = { version = "=1.1.0", features = ["alloc", "serde"] }
 typenum = "1.17.0"
 elliptic-curve = "0.13.8"
 hex = "0.4.3"
@@ -61,9 +61,9 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 criterion = "0.5.1"
 num = { version = "0.4.3", features = ["rand"] }
 rand = "0.8.5"
-sp1-zkvm = { workspace = true }
-sp1-core-executor = { workspace = true, features = ["programs"] }
-test-artifacts = { workspace = true }
+# sp1-zkvm = { workspace = true }
+# sp1-core-executor = { workspace = true, features = ["programs"] }
+# test-artifacts = { workspace = true }
 
 [features]
 debug = []

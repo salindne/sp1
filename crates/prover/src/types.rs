@@ -10,11 +10,11 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core_machine::{io::SP1Stdin, reduce::SP1ReduceProof};
 use sp1_primitives::{io::SP1PublicValues, poseidon2_hash};
 
-use sp1_recursion_circuit::machine::{
-    SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
-};
+// use sp1_recursion_circuit::machine::{
+//     SP1CompressWitnessValues, SP1DeferredWitnessValues, SP1RecursionWitnessValues,
+// };
 
-use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
+// use sp1_recursion_gnark_ffi::proof::{Groth16Bn254Proof, PlonkBn254Proof};
 
 use sp1_stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, DIGEST_SIZE};
 use thiserror::Error;
@@ -152,18 +152,18 @@ impl<P: std::fmt::Debug + Clone> std::fmt::Debug for SP1ProofWithMetadata<P> {
 /// A proof of an SP1 program without any wrapping.
 pub type SP1CoreProof = SP1ProofWithMetadata<SP1CoreProofData>;
 
-/// An SP1 proof that has been recursively reduced into a single proof. This proof can be verified
-/// within SP1 programs.
-pub type SP1ReducedProof = SP1ProofWithMetadata<SP1ReducedProofData>;
+// /// An SP1 proof that has been recursively reduced into a single proof. This proof can be verified
+// /// within SP1 programs.
+// pub type SP1ReducedProof = SP1ProofWithMetadata<SP1ReducedProofData>;
 
-/// An SP1 proof that has been wrapped into a single PLONK proof and can be verified onchain.
-pub type SP1PlonkBn254Proof = SP1ProofWithMetadata<SP1PlonkBn254ProofData>;
+// /// An SP1 proof that has been wrapped into a single PLONK proof and can be verified onchain.
+// pub type SP1PlonkBn254Proof = SP1ProofWithMetadata<SP1PlonkBn254ProofData>;
 
-/// An SP1 proof that has been wrapped into a single Groth16 proof and can be verified onchain.
-pub type SP1Groth16Bn254Proof = SP1ProofWithMetadata<SP1Groth16Bn254ProofData>;
+// /// An SP1 proof that has been wrapped into a single Groth16 proof and can be verified onchain.
+// pub type SP1Groth16Bn254Proof = SP1ProofWithMetadata<SP1Groth16Bn254ProofData>;
 
 /// An SP1 proof that has been wrapped into a single proof and can be verified onchain.
-pub type SP1Proof = SP1ProofWithMetadata<SP1Bn254ProofData>;
+// pub type SP1Proof = SP1ProofWithMetadata<SP1Bn254ProofData>;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1CoreProofData(pub Vec<ShardProof<CoreSC>>);
@@ -171,33 +171,33 @@ pub struct SP1CoreProofData(pub Vec<ShardProof<CoreSC>>);
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1ReducedProofData(pub ShardProof<InnerSC>);
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SP1PlonkBn254ProofData(pub PlonkBn254Proof);
+// #[derive(Serialize, Deserialize, Clone)]
+// pub struct SP1PlonkBn254ProofData(pub PlonkBn254Proof);
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SP1Groth16Bn254ProofData(pub Groth16Bn254Proof);
+// #[derive(Serialize, Deserialize, Clone)]
+// pub struct SP1Groth16Bn254ProofData(pub Groth16Bn254Proof);
 
-#[derive(Serialize, Deserialize, Clone)]
-pub enum SP1Bn254ProofData {
-    Plonk(PlonkBn254Proof),
-    Groth16(Groth16Bn254Proof),
-}
+// #[derive(Serialize, Deserialize, Clone)]
+// pub enum SP1Bn254ProofData {
+//     Plonk(PlonkBn254Proof),
+//     Groth16(Groth16Bn254Proof),
+// }
 
-impl SP1Bn254ProofData {
-    pub fn get_proof_system(&self) -> ProofSystem {
-        match self {
-            SP1Bn254ProofData::Plonk(_) => ProofSystem::Plonk,
-            SP1Bn254ProofData::Groth16(_) => ProofSystem::Groth16,
-        }
-    }
+// impl SP1Bn254ProofData {
+//     pub fn get_proof_system(&self) -> ProofSystem {
+//         match self {
+//             SP1Bn254ProofData::Plonk(_) => ProofSystem::Plonk,
+//             SP1Bn254ProofData::Groth16(_) => ProofSystem::Groth16,
+//         }
+//     }
 
-    pub fn get_raw_proof(&self) -> &str {
-        match self {
-            SP1Bn254ProofData::Plonk(proof) => &proof.raw_proof,
-            SP1Bn254ProofData::Groth16(proof) => &proof.raw_proof,
-        }
-    }
-}
+//     pub fn get_raw_proof(&self) -> &str {
+//         match self {
+//             SP1Bn254ProofData::Plonk(proof) => &proof.raw_proof,
+//             SP1Bn254ProofData::Groth16(proof) => &proof.raw_proof,
+//         }
+//     }
+// }
 
 #[derive(Debug, Default, Clone, ValueEnum, PartialEq, Eq)]
 pub enum ProverMode {
@@ -209,37 +209,37 @@ pub enum ProverMode {
     Mock,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProofSystem {
-    Plonk,
-    Groth16,
-}
+// #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+// pub enum ProofSystem {
+//     Plonk,
+//     Groth16,
+// }
 
-impl ProofSystem {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            ProofSystem::Plonk => "Plonk",
-            ProofSystem::Groth16 => "Groth16",
-        }
-    }
-}
+// impl ProofSystem {
+//     pub fn as_str(&self) -> &'static str {
+//         match self {
+//             ProofSystem::Plonk => "Plonk",
+//             ProofSystem::Groth16 => "Groth16",
+//         }
+//     }
+// }
 
-/// A proof that can be reduced along with other proofs into one proof.
-#[derive(Serialize, Deserialize, Clone)]
-pub enum SP1ReduceProofWrapper {
-    Core(SP1ReduceProof<CoreSC>),
-    Recursive(SP1ReduceProof<InnerSC>),
-}
+// /// A proof that can be reduced along with other proofs into one proof.
+// #[derive(Serialize, Deserialize, Clone)]
+// pub enum SP1ReduceProofWrapper {
+//     Core(SP1ReduceProof<CoreSC>),
+//     Recursive(SP1ReduceProof<InnerSC>),
+// }
 
-#[derive(Error, Debug)]
-pub enum SP1RecursionProverError {
-    #[error("Runtime error: {0}")]
-    RuntimeError(String),
-}
+// #[derive(Error, Debug)]
+// pub enum SP1RecursionProverError {
+//     #[error("Runtime error: {0}")]
+//     RuntimeError(String),
+// }
 
-#[allow(clippy::large_enum_variant)]
-pub enum SP1CircuitWitness {
-    Core(SP1RecursionWitnessValues<CoreSC>),
-    Deferred(SP1DeferredWitnessValues<InnerSC>),
-    Compress(SP1CompressWitnessValues<InnerSC>),
-}
+// #[allow(clippy::large_enum_variant)]
+// pub enum SP1CircuitWitness {
+//     Core(SP1RecursionWitnessValues<CoreSC>),
+//     Deferred(SP1DeferredWitnessValues<InnerSC>),
+//     Compress(SP1CompressWitnessValues<InnerSC>),
+// }

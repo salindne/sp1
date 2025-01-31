@@ -11,10 +11,10 @@ categories = { workspace = true }
 
 [dependencies]
 p3-matrix = { workspace = true }
-sp1-recursion-compiler = { workspace = true }
-sp1-recursion-core = { workspace = true }
-sp1-recursion-circuit = { workspace = true }
-sp1-recursion-gnark-ffi = { workspace = true }
+# sp1-recursion-compiler = { workspace = true }
+# sp1-recursion-core = { workspace = true }
+# sp1-recursion-circuit = { workspace = true }
+# sp1-recursion-gnark-ffi = { workspace = true }
 sp1-core-machine = { workspace = true }
 sp1-stark = { workspace = true }
 p3-symmetric = { workspace = true }
@@ -40,26 +40,10 @@ num-bigint = "0.4.6"
 thiserror = "1.0.63"
 lru = "0.12.4"
 eyre = "0.6.12"
-test-artifacts = { workspace = true, optional = true }
+# test-artifacts = { workspace = true, optional = true }
 
-[dev-dependencies]
-test-artifacts = { workspace = true }
-
-[[bin]]
-name = "build_plonk_bn254"
-path = "scripts/build_plonk_bn254.rs"
-
-[[bin]]
-name = "build_groth16_bn254"
-path = "scripts/build_groth16_bn254.rs"
-
-[[bin]]
-name = "build_compress_vks"
-path = "scripts/build_compress_vks.rs"
-
-[[bin]]
-name = "post_trusted_setup"
-path = "scripts/post_trusted_setup.rs"
+# [dev-dependencies]
+# test-artifacts = { workspace = true }
 
 [[bin]]
 name = "e2e"
@@ -82,6 +66,6 @@ required-features = ["export-tests"]
 
 
 [features]
-native-gnark = ["sp1-recursion-gnark-ffi/native"]
-export-tests = ["dep:test-artifacts"]
-debug = ["sp1-core-machine/debug"]
+# native-gnark = ["sp1-recursion-gnark-ffi/native"]
+# # export-tests = ["dep:test-artifacts"]
+# debug = ["sp1-core-machine/debug"]

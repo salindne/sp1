@@ -8,11 +8,11 @@ use sp1_core_executor::{subproof::SubproofVerifier, SP1ReduceProof};
 use sp1_core_machine::cpu::MAX_CPU_LOG_DEGREE;
 use sp1_primitives::{consts::WORD_SIZE, io::SP1PublicValues};
 
-use sp1_recursion_circuit::machine::RootPublicValues;
-use sp1_recursion_core::{air::RecursionPublicValues, stark::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::{
-    Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
-};
+// use sp1_recursion_circuit::machine::RootPublicValues;
+// use sp1_recursion_core::{air::RecursionPublicValues, stark::BabyBearPoseidon2Outer};
+// use sp1_recursion_gnark_ffi::{
+//     Groth16Bn254Proof, Groth16Bn254Prover, PlonkBn254Proof, PlonkBn254Prover,
+// };
 use sp1_stark::{
     air::{PublicValues, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     baby_bear_poseidon2::BabyBearPoseidon2,
@@ -22,33 +22,12 @@ use thiserror::Error;
 
 use crate::{
     components::SP1ProverComponents,
-    utils::{assert_recursion_public_values_valid, assert_root_public_values_valid},
-    CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1VerifyingKey,
+    // utils::{assert_recursion_public_values_valid, assert_root_public_values_valid},
+    CoreSC,
+    SP1CoreProofData,
+    SP1Prover,
+    SP1VerifyingKey,
 };
-
-#[derive(Error, Debug)]
-pub enum PlonkVerificationError {
-    #[error(
-        "the verifying key does not match the inner plonk bn254 proof's committed verifying key"
-    )]
-    InvalidVerificationKey,
-    #[error(
-        "the public values in the sp1 proof do not match the public values in the inner plonk bn254 proof"
-    )]
-    InvalidPublicValues,
-}
-
-#[derive(Error, Debug)]
-pub enum Groth16VerificationError {
-    #[error(
-        "the verifying key does not match the inner groth16 bn254 proof's committed verifying key"
-    )]
-    InvalidVerificationKey,
-    #[error(
-        "the public values in the sp1 proof do not match the public values in the inner groth16 bn254 proof"
-    )]
-    InvalidPublicValues,
-}
 
 impl<C: SP1ProverComponents> SP1Prover<C> {
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
@@ -288,217 +267,217 @@ impl<C: SP1ProverComponents> SP1Prover<C> {
         Ok(())
     }
 
-    /// Verify a compressed proof.
-    pub fn verify_compressed(
-        &self,
-        proof: &SP1ReduceProof<BabyBearPoseidon2>,
-        vk: &SP1VerifyingKey,
-    ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let SP1ReduceProof { vk: compress_vk, proof } = proof;
-        let mut challenger = self.compress_prover.config().challenger();
-        let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
-        self.compress_prover.machine().verify(compress_vk, &machine_proof, &mut challenger)?;
+    // /// Verify a compressed proof.
+    // pub fn verify_compressed(
+    //     &self,
+    //     proof: &SP1ReduceProof<BabyBearPoseidon2>,
+    //     vk: &SP1VerifyingKey,
+    // ) -> Result<(), MachineVerificationError<CoreSC>> {
+    //     let SP1ReduceProof { vk: compress_vk, proof } = proof;
+    //     let mut challenger = self.compress_prover.config().challenger();
+    //     let machine_proof = MachineProof { shard_proofs: vec![proof.clone()] };
+    //     self.compress_prover.machine().verify(compress_vk, &machine_proof, &mut challenger)?;
 
-        // Validate public values
-        let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
-        assert_recursion_public_values_valid(
-            self.compress_prover.machine().config(),
-            public_values,
-        );
+    //     // Validate public values
+    //     let public_values: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
+    //     assert_recursion_public_values_valid(
+    //         self.compress_prover.machine().config(),
+    //         public_values,
+    //     );
 
-        if self.vk_verification && !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
-            return Err(MachineVerificationError::InvalidVerificationKey);
-        }
+    //     if self.vk_verification && !self.allowed_vk_map.contains_key(&compress_vk.hash_babybear()) {
+    //         return Err(MachineVerificationError::InvalidVerificationKey);
+    //     }
 
-        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
-        // reduced.
-        if public_values.is_complete != BabyBear::one() {
-            return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
-        }
+    //     // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully
+    //     // reduced.
+    //     if public_values.is_complete != BabyBear::one() {
+    //         return Err(MachineVerificationError::InvalidPublicValues("is_complete is not 1"));
+    //     }
 
-        // Verify that the proof is for the sp1 vkey we are expecting.
-        let vkey_hash = vk.hash_babybear();
-        if public_values.sp1_vk_digest != vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
-        }
+    //     // Verify that the proof is for the sp1 vkey we are expecting.
+    //     let vkey_hash = vk.hash_babybear();
+    //     if public_values.sp1_vk_digest != vkey_hash {
+    //         return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    /// Verify a shrink proof.
-    pub fn verify_shrink(
-        &self,
-        proof: &SP1ReduceProof<BabyBearPoseidon2>,
-        vk: &SP1VerifyingKey,
-    ) -> Result<(), MachineVerificationError<CoreSC>> {
-        let mut challenger = self.shrink_prover.config().challenger();
-        let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
-        self.shrink_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
+    // /// Verify a shrink proof.
+    // pub fn verify_shrink(
+    //     &self,
+    //     proof: &SP1ReduceProof<BabyBearPoseidon2>,
+    //     vk: &SP1VerifyingKey,
+    // ) -> Result<(), MachineVerificationError<CoreSC>> {
+    //     let mut challenger = self.shrink_prover.config().challenger();
+    //     let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
+    //     self.shrink_prover.machine().verify(&proof.vk, &machine_proof, &mut challenger)?;
 
-        // Validate public values
-        let public_values: &RecursionPublicValues<_> =
-            proof.proof.public_values.as_slice().borrow();
-        assert_recursion_public_values_valid(
-            self.compress_prover.machine().config(),
-            public_values,
-        );
+    //     // Validate public values
+    //     let public_values: &RecursionPublicValues<_> =
+    //         proof.proof.public_values.as_slice().borrow();
+    //     assert_recursion_public_values_valid(
+    //         self.compress_prover.machine().config(),
+    //         public_values,
+    //     );
 
-        if self.vk_verification && !self.allowed_vk_map.contains_key(&proof.vk.hash_babybear()) {
-            return Err(MachineVerificationError::InvalidVerificationKey);
-        }
+    //     if self.vk_verification && !self.allowed_vk_map.contains_key(&proof.vk.hash_babybear()) {
+    //         return Err(MachineVerificationError::InvalidVerificationKey);
+    //     }
 
-        // Verify that the proof is for the sp1 vkey we are expecting.
-        let vkey_hash = vk.hash_babybear();
-        if public_values.sp1_vk_digest != vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
-        }
+    //     // Verify that the proof is for the sp1 vkey we are expecting.
+    //     let vkey_hash = vk.hash_babybear();
+    //     if public_values.sp1_vk_digest != vkey_hash {
+    //         return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    /// Verify a wrap bn254 proof.
-    pub fn verify_wrap_bn254(
-        &self,
-        proof: &SP1ReduceProof<BabyBearPoseidon2Outer>,
-        vk: &SP1VerifyingKey,
-    ) -> Result<(), MachineVerificationError<OuterSC>> {
-        let mut challenger = self.wrap_prover.config().challenger();
-        let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
+    // /// Verify a wrap bn254 proof.
+    // pub fn verify_wrap_bn254(
+    //     &self,
+    //     proof: &SP1ReduceProof<BabyBearPoseidon2Outer>,
+    //     vk: &SP1VerifyingKey,
+    // ) -> Result<(), MachineVerificationError<OuterSC>> {
+    //     let mut challenger = self.wrap_prover.config().challenger();
+    //     let machine_proof = MachineProof { shard_proofs: vec![proof.proof.clone()] };
 
-        let wrap_vk = self.wrap_vk.get().expect("Wrap verifier key not set");
-        self.wrap_prover.machine().verify(wrap_vk, &machine_proof, &mut challenger)?;
+    //     let wrap_vk = self.wrap_vk.get().expect("Wrap verifier key not set");
+    //     self.wrap_prover.machine().verify(wrap_vk, &machine_proof, &mut challenger)?;
 
-        // Validate public values
-        let public_values: &RootPublicValues<_> = proof.proof.public_values.as_slice().borrow();
-        assert_root_public_values_valid(self.shrink_prover.machine().config(), public_values);
+    //     // Validate public values
+    //     let public_values: &RootPublicValues<_> = proof.proof.public_values.as_slice().borrow();
+    //     assert_root_public_values_valid(self.shrink_prover.machine().config(), public_values);
 
-        // Verify that the proof is for the sp1 vkey we are expecting.
-        let vkey_hash = vk.hash_babybear();
-        if *public_values.sp1_vk_digest() != vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
-        }
+    //     // Verify that the proof is for the sp1 vkey we are expecting.
+    //     let vkey_hash = vk.hash_babybear();
+    //     if *public_values.sp1_vk_digest() != vkey_hash {
+    //         return Err(MachineVerificationError::InvalidPublicValues("sp1 vk hash mismatch"));
+    //     }
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    /// Verifies a PLONK proof using the circuit artifacts in the build directory.
-    pub fn verify_plonk_bn254(
-        &self,
-        proof: &PlonkBn254Proof,
-        vk: &SP1VerifyingKey,
-        public_values: &SP1PublicValues,
-        build_dir: &Path,
-    ) -> Result<()> {
-        let prover = PlonkBn254Prover::new();
+    // /// Verifies a PLONK proof using the circuit artifacts in the build directory.
+    // pub fn verify_plonk_bn254(
+    //     &self,
+    //     proof: &PlonkBn254Proof,
+    //     vk: &SP1VerifyingKey,
+    //     public_values: &SP1PublicValues,
+    //     build_dir: &Path,
+    // ) -> Result<()> {
+    //     let prover = PlonkBn254Prover::new();
 
-        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
-        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
+    //     let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
+    //     let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
 
-        // Verify the proof with the corresponding public inputs.
-        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
+    //     // Verify the proof with the corresponding public inputs.
+    //     prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
-        verify_plonk_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
+    //     verify_plonk_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
-    /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
-    pub fn verify_groth16_bn254(
-        &self,
-        proof: &Groth16Bn254Proof,
-        vk: &SP1VerifyingKey,
-        public_values: &SP1PublicValues,
-        build_dir: &Path,
-    ) -> Result<()> {
-        let prover = Groth16Bn254Prover::new();
+    // /// Verifies a Groth16 proof using the circuit artifacts in the build directory.
+    // pub fn verify_groth16_bn254(
+    //     &self,
+    //     proof: &Groth16Bn254Proof,
+    //     vk: &SP1VerifyingKey,
+    //     public_values: &SP1PublicValues,
+    //     build_dir: &Path,
+    // ) -> Result<()> {
+    //     let prover = Groth16Bn254Prover::new();
 
-        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
-        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
+    //     let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
+    //     let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
 
-        // Verify the proof with the corresponding public inputs.
-        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
+    //     // Verify the proof with the corresponding public inputs.
+    //     prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
-        verify_groth16_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
+    //     verify_groth16_bn254_public_inputs(vk, public_values, &proof.public_inputs)?;
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the PlonkBn254Proof match the
-/// expected values.
-pub fn verify_plonk_bn254_public_inputs(
-    vk: &SP1VerifyingKey,
-    public_values: &SP1PublicValues,
-    plonk_bn254_public_inputs: &[String],
-) -> Result<()> {
-    let expected_vk_hash = BigUint::from_str(&plonk_bn254_public_inputs[0])?;
-    let expected_public_values_hash = BigUint::from_str(&plonk_bn254_public_inputs[1])?;
+// /// Verify the vk_hash and public_values_hash in the public inputs of the PlonkBn254Proof match the
+// /// expected values.
+// pub fn verify_plonk_bn254_public_inputs(
+//     vk: &SP1VerifyingKey,
+//     public_values: &SP1PublicValues,
+//     plonk_bn254_public_inputs: &[String],
+// ) -> Result<()> {
+//     let expected_vk_hash = BigUint::from_str(&plonk_bn254_public_inputs[0])?;
+//     let expected_public_values_hash = BigUint::from_str(&plonk_bn254_public_inputs[1])?;
 
-    let vk_hash = vk.hash_bn254().as_canonical_biguint();
-    if vk_hash != expected_vk_hash {
-        return Err(PlonkVerificationError::InvalidVerificationKey.into());
-    }
+//     let vk_hash = vk.hash_bn254().as_canonical_biguint();
+//     if vk_hash != expected_vk_hash {
+//         return Err(PlonkVerificationError::InvalidVerificationKey.into());
+//     }
 
-    let public_values_hash = public_values.hash_bn254();
-    if public_values_hash != expected_public_values_hash {
-        return Err(PlonkVerificationError::InvalidPublicValues.into());
-    }
+//     let public_values_hash = public_values.hash_bn254();
+//     if public_values_hash != expected_public_values_hash {
+//         return Err(PlonkVerificationError::InvalidPublicValues.into());
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-/// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Bn254Proof match
-/// the expected values.
-pub fn verify_groth16_bn254_public_inputs(
-    vk: &SP1VerifyingKey,
-    public_values: &SP1PublicValues,
-    groth16_bn254_public_inputs: &[String],
-) -> Result<()> {
-    let expected_vk_hash = BigUint::from_str(&groth16_bn254_public_inputs[0])?;
-    let expected_public_values_hash = BigUint::from_str(&groth16_bn254_public_inputs[1])?;
+// /// Verify the vk_hash and public_values_hash in the public inputs of the Groth16Bn254Proof match
+// /// the expected values.
+// pub fn verify_groth16_bn254_public_inputs(
+//     vk: &SP1VerifyingKey,
+//     public_values: &SP1PublicValues,
+//     groth16_bn254_public_inputs: &[String],
+// ) -> Result<()> {
+//     let expected_vk_hash = BigUint::from_str(&groth16_bn254_public_inputs[0])?;
+//     let expected_public_values_hash = BigUint::from_str(&groth16_bn254_public_inputs[1])?;
 
-    let vk_hash = vk.hash_bn254().as_canonical_biguint();
-    if vk_hash != expected_vk_hash {
-        return Err(Groth16VerificationError::InvalidVerificationKey.into());
-    }
+//     let vk_hash = vk.hash_bn254().as_canonical_biguint();
+//     if vk_hash != expected_vk_hash {
+//         return Err(Groth16VerificationError::InvalidVerificationKey.into());
+//     }
 
-    let public_values_hash = public_values.hash_bn254();
-    if public_values_hash != expected_public_values_hash {
-        return Err(Groth16VerificationError::InvalidPublicValues.into());
-    }
+//     let public_values_hash = public_values.hash_bn254();
+//     if public_values_hash != expected_public_values_hash {
+//         return Err(Groth16VerificationError::InvalidPublicValues.into());
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
-impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
-    fn verify_deferred_proof(
-        &self,
-        proof: &sp1_core_machine::reduce::SP1ReduceProof<BabyBearPoseidon2>,
-        vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
-        vk_hash: [u32; 8],
-        committed_value_digest: [u32; 8],
-    ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
-        // Check that the vk hash matches the vk hash from the input.
-        if vk.hash_u32() != vk_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "vk hash from syscall does not match vkey from input",
-            ));
-        }
-        // Check that proof is valid.
-        self.verify_compressed(
-            &SP1ReduceProof { vk: proof.vk.clone(), proof: proof.proof.clone() },
-            &SP1VerifyingKey { vk: vk.clone() },
-        )?;
-        // Check that the committed value digest matches the one from syscall
-        let public_values: &RecursionPublicValues<_> =
-            proof.proof.public_values.as_slice().borrow();
-        for (i, word) in public_values.committed_value_digest.iter().enumerate() {
-            if *word != committed_value_digest[i].into() {
-                return Err(MachineVerificationError::InvalidPublicValues(
-                    "committed_value_digest does not match",
-                ));
-            }
-        }
-        Ok(())
-    }
-}
+// impl<C: SP1ProverComponents> SubproofVerifier for &SP1Prover<C> {
+//     fn verify_deferred_proof(
+//         &self,
+//         proof: &sp1_core_machine::reduce::SP1ReduceProof<BabyBearPoseidon2>,
+//         vk: &sp1_stark::StarkVerifyingKey<BabyBearPoseidon2>,
+//         vk_hash: [u32; 8],
+//         committed_value_digest: [u32; 8],
+//     ) -> Result<(), MachineVerificationError<BabyBearPoseidon2>> {
+//         // Check that the vk hash matches the vk hash from the input.
+//         if vk.hash_u32() != vk_hash {
+//             return Err(MachineVerificationError::InvalidPublicValues(
+//                 "vk hash from syscall does not match vkey from input",
+//             ));
+//         }
+//         // Check that proof is valid.
+//         self.verify_compressed(
+//             &SP1ReduceProof { vk: proof.vk.clone(), proof: proof.proof.clone() },
+//             &SP1VerifyingKey { vk: vk.clone() },
+//         )?;
+//         // Check that the committed value digest matches the one from syscall
+//         let public_values: &RecursionPublicValues<_> =
+//             proof.proof.public_values.as_slice().borrow();
+//         for (i, word) in public_values.committed_value_digest.iter().enumerate() {
+//             if *word != committed_value_digest[i].into() {
+//                 return Err(MachineVerificationError::InvalidPublicValues(
+//                     "committed_value_digest does not match",
+//                 ));
+//             }
+//         }
+//         Ok(())
+//     }
+// }
